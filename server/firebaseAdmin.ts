@@ -11,7 +11,10 @@ import {
 } from 'firebase-admin/app';
 
 import { getAuth, type Auth } from 'firebase-admin/auth';
-import { getFirestore, type Firestore } from 'firebase-admin/firestore';
+import {
+  getFirestore,
+  type Firestore,
+} from 'firebase-admin/firestore';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -21,7 +24,6 @@ export interface FirebaseAppletConfig {
   firestoreDatabaseId?: string;
 }
 
-// Đọc cấu hình Firebase, ưu tiên biến môi trường trên Vercel
 function loadAppletConfig(): FirebaseAppletConfig {
   const candidates = [
     path.resolve(__dirname, '../firebase-applet-config.json'),
@@ -63,7 +65,6 @@ function loadAppletConfig(): FirebaseAppletConfig {
 
 export const appletConfig = loadAppletConfig();
 
-// Đọc Firebase Service Account từ biến môi trường
 function parseServiceAccount(): ServiceAccount | null {
   const raw = process.env.FIREBASE_SERVICE_ACCOUNT_KEY;
 
@@ -81,13 +82,13 @@ function parseServiceAccount(): ServiceAccount | null {
     const parsed = JSON.parse(jsonString) as ServiceAccount;
 
     if (!parsed || typeof parsed !== 'object' || !('project_id' in parsed)) {
-      throw new Error('Service Account thiếu trường project_id');
+      throw new Error('Service Account thiếu project_id');
     }
 
     return parsed;
   } catch (err) {
     console.error(
-      'FIREBASE_SERVICE_ACCOUNT_KEY không đúng định dạng:',
+      'FIREBASE_SERVICE_ACCOUNT_KEY không đúng định dạng JSON:',
       err
     );
     return null;
@@ -98,7 +99,6 @@ const serviceAccount = parseServiceAccount();
 
 export const hasServiceAccount = Boolean(serviceAccount);
 
-// Khởi tạo Firebase Admin SDK
 if (getApps().length === 0) {
   if (serviceAccount) {
     initializeApp({
@@ -112,10 +112,8 @@ if (getApps().length === 0) {
   }
 }
 
-// Xuất Firebase Authentication Admin
 export const adminAuth: Auth = getAuth();
 
-// Kết nối Firestore Admin
 let cachedDb: Firestore | null = null;
 
 export function getAdminDb(): Firestore | null {
