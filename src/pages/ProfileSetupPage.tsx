@@ -1,11 +1,11 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { ArrowRight, CheckCircle2, Save } from 'lucide-react';
+import { AlertCircle, ArrowRight, CheckCircle2, Save } from 'lucide-react';
 import { AppImage } from '@/src/components/common/AppImage';
 import { PageHeader } from '@/src/components/common/StateViews';
 import { TEACHER_ROLES, VIETNAM_PROVINCES } from '@/src/config/curriculum';
 import { ROUTES } from '@/src/config/navigation';
-import { useAuth } from '@/src/hooks/useAuth';
+import { useAuth } from '@/src/hooks/authContext';
 import { TeacherRole } from '@/src/types';
 
 export const ProfileSetupPage: React.FC = () => {
@@ -13,33 +13,53 @@ export const ProfileSetupPage: React.FC = () => {
   const { profile, updateProfile } = useAuth();
 
   const [fullName, setFullName] = useState(profile.fullName);
-  const [email, setEmail] = useState(profile.email);
   const [schoolName, setSchoolName] = useState(profile.schoolName);
   const [province, setProvince] = useState(profile.province);
   const [yearsOfExperience, setYearsOfExperience] = useState(String(profile.yearsOfExperience));
   const [role, setRole] = useState<TeacherRole>(profile.role);
   const [bio, setBio] = useState(profile.bio);
+  const [isSaving, setIsSaving] = useState(false);
   const [savedNotice, setSavedNotice] = useState(false);
+  const [errorNotice, setErrorNotice] = useState('');
 
-  const handleSubmit = (e: React.FormEvent) => {
+  useEffect(() => {
+    setFullName(profile.fullName);
+    setSchoolName(profile.schoolName);
+    setProvince(profile.province);
+    setYearsOfExperience(String(profile.yearsOfExperience));
+    setRole(profile.role);
+    setBio(profile.bio);
+  }, [profile]);
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    updateProfile({
-      fullName: fullName.trim() || profile.fullName,
-      email: email.trim() || profile.email,
-      schoolName: schoolName.trim() || profile.schoolName,
-      province,
-      yearsOfExperience: Math.max(0, Number(yearsOfExperience) || 0),
-      role,
-      bio: bio.trim(),
-    });
-    setSavedNotice(true);
+    setErrorNotice('');
+    setSavedNotice(false);
+    setIsSaving(true);
+    try {
+      await updateProfile({
+        fullName: fullName.trim() || profile.fullName,
+        schoolName: schoolName.trim() || profile.schoolName,
+        province,
+        yearsOfExperience: Math.max(0, Number(yearsOfExperience) || 0),
+        role,
+        bio: bio.trim(),
+      });
+      setSavedNotice(true);
+    } catch (error) {
+      setErrorNotice(
+        error instanceof Error ? error.message : 'Không thể lưu hồ sơ lên Firestore.'
+      );
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   return (
     <div className="space-y-6">
       <PageHeader
         title="Thiết lập hồ sơ giáo viên"
-        description="Cập nhật thông tin công tác và vai trò chuyên môn để đồng bộ trên báo cáo và cộng đồng trường học."
+        description="Thông tin được lưu trực tiếp vào Firestore (users/{uid}). Phân quyền hệ thống chỉ do Admin quản lý."
         actions={
           <Link
             to={ROUTES.PREFERENCES}
@@ -51,11 +71,21 @@ export const ProfileSetupPage: React.FC = () => {
         }
       />
 
+      {errorNotice ? (
+        <div
+          role="alert"
+          className="p-4 bg-red-50 border border-red-200 rounded-xl flex items-center gap-2.5 text-sm text-red-800"
+        >
+          <AlertCircle className="w-5 h-5 text-red-600 shrink-0" />
+          <span>{errorNotice}</span>
+        </div>
+      ) : null}
+
       {savedNotice ? (
         <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div className="flex items-center gap-2.5 text-sm font-medium text-emerald-900">
             <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
-            <span>Đã lưu thông tin hồ sơ giáo viên thành công.</span>
+            <span>Đã đồng bộ thông tin hồ sơ giáo viên lên Firestore thành công.</span>
           </div>
           <button
             type="button"
@@ -81,10 +111,10 @@ export const ProfileSetupPage: React.FC = () => {
           <div>
             <h2 className="text-base font-semibold text-slate-900">{fullName || 'Giáo viên'}</h2>
             <p className="text-sm text-slate-600 mt-0.5">
-              {role} · {schoolName || 'Chưa cập nhật đơn vị'}
+              {role} · Quyền hệ thống: <span className="font-semibold text-slate-900">{profile.systemRole}</span>
             </p>
             <p className="text-xs text-slate-500 mt-1">
-              Tên tài khoản này sẽ hiển thị ở góc phải trên và trên chứng nhận hoàn thành lộ trình.
+              Email tài khoản ({profile.email}) và quyền hệ thống ({profile.systemRole}) được bảo vệ phía máy chủ.
             </p>
           </div>
         </div>
@@ -97,6 +127,7 @@ export const ProfileSetupPage: React.FC = () => {
             <input
               id="profile-name"
               type="text"
+              maxLength={120}
               value={fullName}
               onChange={(e) => setFullName(e.target.value)}
               className="w-full min-h-11 px-3.5 py-2.5 text-sm bg-white border border-slate-300 rounded-lg focus:outline-none focus:border-blue-600"
@@ -106,15 +137,14 @@ export const ProfileSetupPage: React.FC = () => {
 
           <div>
             <label htmlFor="profile-email" className="block text-sm font-medium text-slate-700 mb-1.5">
-              Email liên hệ
+              Email tài khoản (không thể sửa trực tiếp)
             </label>
             <input
               id="profile-email"
               type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              className="w-full min-h-11 px-3.5 py-2.5 text-sm bg-white border border-slate-300 rounded-lg focus:outline-none focus:border-blue-600"
-              required
+              value={profile.email}
+              disabled
+              className="w-full min-h-11 px-3.5 py-2.5 text-sm bg-slate-100 text-slate-600 border border-slate-200 rounded-lg cursor-not-allowed"
             />
           </div>
 
@@ -125,6 +155,7 @@ export const ProfileSetupPage: React.FC = () => {
             <input
               id="profile-school"
               type="text"
+              maxLength={200}
               value={schoolName}
               onChange={(e) => setSchoolName(e.target.value)}
               className="w-full min-h-11 px-3.5 py-2.5 text-sm bg-white border border-slate-300 rounded-lg focus:outline-none focus:border-blue-600"
@@ -152,7 +183,7 @@ export const ProfileSetupPage: React.FC = () => {
 
           <div>
             <label htmlFor="profile-role" className="block text-sm font-medium text-slate-700 mb-1.5">
-              Vai trò hiện tại
+              Chức danh chuyên môn
             </label>
             <select
               id="profile-role"
@@ -176,7 +207,7 @@ export const ProfileSetupPage: React.FC = () => {
               id="profile-years"
               type="number"
               min={0}
-              max={45}
+              max={60}
               value={yearsOfExperience}
               onChange={(e) => setYearsOfExperience(e.target.value)}
               className="w-full min-h-11 px-3.5 py-2.5 text-sm bg-white border border-slate-300 rounded-lg tabular-nums focus:outline-none focus:border-blue-600"
@@ -191,6 +222,7 @@ export const ProfileSetupPage: React.FC = () => {
           <textarea
             id="profile-bio"
             rows={3}
+            maxLength={1000}
             value={bio}
             onChange={(e) => setBio(e.target.value)}
             placeholder="Ví dụ: Chuẩn bị giảng dạy các chuyên đề Khoa học tự nhiên bằng tiếng Anh cho lớp tích hợp."
@@ -207,10 +239,11 @@ export const ProfileSetupPage: React.FC = () => {
           </Link>
           <button
             type="submit"
-            className="min-h-10 px-5 py-2 inline-flex items-center gap-2 text-sm font-semibold text-white bg-blue-700 hover:bg-blue-800 rounded-lg transition-colors"
+            disabled={isSaving}
+            className="min-h-10 px-5 py-2 inline-flex items-center gap-2 text-sm font-semibold text-white bg-blue-700 hover:bg-blue-800 disabled:opacity-60 rounded-lg transition-colors"
           >
             <Save className="w-4 h-4" />
-            <span>Lưu hồ sơ giáo viên</span>
+            <span>{isSaving ? 'Đang lưu...' : 'Lưu hồ sơ giáo viên'}</span>
           </button>
         </div>
       </form>

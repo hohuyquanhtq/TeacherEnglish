@@ -1,0 +1,180 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "Hồ sơ giáo viên, cấu hình môn học, khối lớp, trình độ tiếng Anh và vai trò phân quyền.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "fullName": { "type": "string", "minLength": 1, "maxLength": 120 },
+        "email": { "type": "string", "format": "email", "maxLength": 200 },
+        "role": { "type": "string", "enum": ["Teacher", "Editor", "Admin"] },
+        "teacherPosition": { "type": "string", "maxLength": 80 },
+        "schoolName": { "type": "string", "maxLength": 200 },
+        "province": { "type": "string", "maxLength": 100 },
+        "yearsOfExperience": { "type": "number" },
+        "bio": { "type": "string", "maxLength": 1000 },
+        "avatarUrl": { "type": "string", "maxLength": 500 },
+        "primarySubject": { "type": "string", "maxLength": 50 },
+        "subjects": { "type": "array", "description": "Danh sách các môn học đã chọn (tối đa 10 môn)" },
+        "schoolStage": { "type": "string", "enum": ["tieuhoc", "thcs", "thpt"] },
+        "grades": { "type": "array", "description": "Danh sách các khối lớp đã chọn (tối đa 12 khối)" },
+        "currentLevel": { "type": "string", "enum": ["A1", "A2", "B1", "B2", "C1", "C2"] },
+        "targetLevel": { "type": "string", "enum": ["A1", "A2", "B1", "B2", "C1", "C2"] },
+        "weeklyMinutesTarget": { "type": "number" },
+        "onboardingCompleted": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "fullName", "email", "role", "subjects", "grades", "currentLevel", "targetLevel", "createdAt", "updatedAt"]
+    },
+    "Subject": {
+      "title": "Subject",
+      "description": "Danh mục môn học trong chương trình bồi dưỡng giáo viên.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "minLength": 1, "maxLength": 64, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "name": { "type": "string", "minLength": 1, "maxLength": 100 },
+        "englishName": { "type": "string", "minLength": 1, "maxLength": 100 },
+        "group": { "type": "string", "maxLength": 100 },
+        "isActive": { "type": "boolean" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "name", "englishName", "isActive", "updatedAt"]
+    },
+    "Lesson": {
+      "title": "Lesson",
+      "description": "Bài học song ngữ và chuyên đề giảng dạy theo môn học.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "title": { "type": "string", "minLength": 1, "maxLength": 200 },
+        "subjectId": { "type": "string", "maxLength": 64 },
+        "subjectName": { "type": "string", "maxLength": 100 },
+        "gradeLabel": { "type": "string", "maxLength": 50 },
+        "level": { "type": "string", "enum": ["A1", "A2", "B1", "B2", "C1", "C2"] },
+        "durationMinutes": { "type": "number" },
+        "warmUpScriptEn": { "type": "string", "maxLength": 2000 },
+        "warmUpScriptVi": { "type": "string", "maxLength": 2000 },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "title", "subjectId", "level", "durationMinutes", "updatedAt"]
+    },
+    "ClassroomEnglishCategory": {
+      "title": "ClassroomEnglishCategory",
+      "description": "Nhóm mẫu câu tiếng Anh điều hành lớp học.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "situation": { "type": "string", "minLength": 1, "maxLength": 100 },
+        "english": { "type": "string", "minLength": 1, "maxLength": 500 },
+        "vietnamese": { "type": "string", "minLength": 1, "maxLength": 500 },
+        "pronunciation": { "type": "string", "maxLength": 300 },
+        "note": { "type": "string", "maxLength": 500 },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "situation", "english", "vietnamese", "updatedAt"]
+    },
+    "Quiz": {
+      "title": "Quiz",
+      "description": "Bài kiểm tra đánh giá năng lực và thuật ngữ.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "title": { "type": "string", "minLength": 1, "maxLength": 200 },
+        "category": { "type": "string", "maxLength": 100 },
+        "questionCount": { "type": "number" },
+        "durationMinutes": { "type": "number" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "title", "category", "questionCount", "durationMinutes", "updatedAt"]
+    },
+    "UserLibrary": {
+      "title": "UserLibrary",
+      "description": "Tài liệu, mẫu câu và giáo án đã lưu riêng của từng giáo viên.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "savedIds": { "type": "array", "description": "Danh sách ID tài nguyên đã lưu (tối đa 200)" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "savedIds", "updatedAt"]
+    },
+    "AiSession": {
+      "title": "AiSession",
+      "description": "Lịch sử phiên làm việc AI Teacher Coach của người dùng.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "messages": { "type": "array", "description": "Danh sách tin nhắn trong phiên (tối đa 100)" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "messages", "updatedAt"]
+    },
+    "LearningRecord": {
+      "title": "LearningRecord",
+      "description": "Tiến độ học tập, mục tiêu và thống kê cá nhân của giáo viên.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "goals": { "type": "array", "description": "Danh sách mục tiêu học tập (tối đa 30)" },
+        "weeklyMinutes": { "type": "number" },
+        "completedModules": { "type": "number" },
+        "streakDays": { "type": "number" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "goals", "weeklyMinutes", "updatedAt"]
+    },
+    "SystemSetting": {
+      "title": "SystemSetting",
+      "description": "Cấu hình hệ thống do Admin quản lý.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "minLength": 1, "maxLength": 64, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "platformName": { "type": "string", "maxLength": 100 },
+        "defaultTargetLevel": { "type": "string", "enum": ["A1", "A2", "B1", "B2", "C1", "C2"] },
+        "allowSelfRegistration": { "type": "boolean" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "platformName", "allowSelfRegistration", "updatedAt"]
+    }
+  },
+  "firestore": {
+    "/users/{uid}": {
+      "schema": { "$ref": "#/entities/UserProfile" },
+      "description": "Hồ sơ giáo viên, môn học, khối lớp, trình độ tiếng Anh và vai trò phân quyền."
+    },
+    "/subjects/{subjectId}": {
+      "schema": { "$ref": "#/entities/Subject" },
+      "description": "Danh mục môn học hệ thống."
+    },
+    "/lessons/{lessonId}": {
+      "schema": { "$ref": "#/entities/Lesson" },
+      "description": "Danh sách bài học song ngữ."
+    },
+    "/classroomEnglish/{categoryId}": {
+      "schema": { "$ref": "#/entities/ClassroomEnglishCategory" },
+      "description": "Mẫu câu tiếng Anh giao tiếp trong lớp học."
+    },
+    "/quizzes/{quizId}": {
+      "schema": { "$ref": "#/entities/Quiz" },
+      "description": "Bài kiểm tra đánh giá năng lực."
+    },
+    "/userLibrary/{uid}": {
+      "schema": { "$ref": "#/entities/UserLibrary" },
+      "description": "Thư viện cá nhân của giáo viên."
+    },
+    "/aiSessions/{uid}": {
+      "schema": { "$ref": "#/entities/AiSession" },
+      "description": "Phiên làm việc AI Teacher Coach của giáo viên."
+    },
+    "/learningRecords/{uid}": {
+      "schema": { "$ref": "#/entities/LearningRecord" },
+      "description": "Dữ liệu tiến độ và mục tiêu học tập cá nhân."
+    },
+    "/systemSettings/{settingId}": {
+      "schema": { "$ref": "#/entities/SystemSetting" },
+      "description": "Cấu hình toàn hệ thống (chỉ Admin được ghi)."
+    }
+  }
+}

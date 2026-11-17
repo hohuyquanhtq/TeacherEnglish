@@ -20,6 +20,7 @@ import { RoadmapPage } from '@/src/pages/RoadmapPage';
 import { SpeakingPracticePage } from '@/src/pages/SpeakingPracticePage';
 import { SubjectEnglishPage } from '@/src/pages/SubjectEnglishPage';
 import { TeachingPracticePage } from '@/src/pages/TeachingPracticePage';
+import { ProtectedRoute } from '@/src/routes/protectedRoute';
 
 export const AppRoutes: React.FC = () => {
   return (
@@ -30,23 +31,30 @@ export const AppRoutes: React.FC = () => {
         <Route path={ROUTES.REGISTER} element={<RegisterPage />} />
       </Route>
 
-      {/* Main application workspace */}
-      <Route element={<MainLayout />}>
-        <Route path={ROUTES.DASHBOARD} element={<DashboardPage />} />
-        <Route path={ROUTES.ROADMAP} element={<RoadmapPage />} />
-        <Route path={ROUTES.ENGLISH_CLASSROOM} element={<EnglishClassroomPage />} />
-        <Route path={ROUTES.SUBJECT_ENGLISH} element={<SubjectEnglishPage />} />
-        <Route path={ROUTES.BILINGUAL_LESSONS} element={<BilingualLessonsPage />} />
-        <Route path={ROUTES.AI_COACH} element={<AiCoachPage />} />
-        <Route path={ROUTES.SPEAKING} element={<SpeakingPracticePage />} />
-        <Route path={ROUTES.TEACHING_PRACTICE} element={<TeachingPracticePage />} />
-        <Route path={ROUTES.ASSESSMENTS} element={<AssessmentsPage />} />
-        <Route path={ROUTES.LIBRARY} element={<LibraryPage />} />
-        <Route path={ROUTES.REPORTS} element={<ReportsPage />} />
-        <Route path={ROUTES.ADMIN} element={<AdminPage />} />
-        <Route path={ROUTES.PROFILE_SETUP} element={<ProfileSetupPage />} />
-        <Route path={ROUTES.PREFERENCES} element={<PreferencesSetupPage />} />
-        <Route path="*" element={<NotFoundPage />} />
+      {/* Protected main application workspace */}
+      <Route element={<ProtectedRoute />}>
+        <Route element={<MainLayout />}>
+          <Route path={ROUTES.DASHBOARD} element={<DashboardPage />} />
+          <Route path={ROUTES.ROADMAP} element={<RoadmapPage />} />
+          <Route path={ROUTES.ENGLISH_CLASSROOM} element={<EnglishClassroomPage />} />
+          <Route path={ROUTES.SUBJECT_ENGLISH} element={<SubjectEnglishPage />} />
+          <Route path={ROUTES.BILINGUAL_LESSONS} element={<BilingualLessonsPage />} />
+          <Route path={ROUTES.AI_COACH} element={<AiCoachPage />} />
+          <Route path={ROUTES.SPEAKING} element={<SpeakingPracticePage />} />
+          <Route path={ROUTES.TEACHING_PRACTICE} element={<TeachingPracticePage />} />
+          <Route path={ROUTES.ASSESSMENTS} element={<AssessmentsPage />} />
+          <Route path={ROUTES.LIBRARY} element={<LibraryPage />} />
+          <Route path={ROUTES.REPORTS} element={<ReportsPage />} />
+          <Route path={ROUTES.PROFILE_SETUP} element={<ProfileSetupPage />} />
+          <Route path={ROUTES.PREFERENCES} element={<PreferencesSetupPage />} />
+
+          {/* Admin-only route */}
+          <Route element={<ProtectedRoute allowedRoles={['Admin']} />}>
+            <Route path={ROUTES.ADMIN} element={<AdminPage />} />
+          </Route>
+
+          <Route path="*" element={<NotFoundPage />} />
+        </Route>
       </Route>
     </Routes>
   );

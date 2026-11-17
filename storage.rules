@@ -1,0 +1,63 @@
+rules_version = '2';
+
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    // Default deny all
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(uid) {
+      return isSignedIn() && request.auth.uid == uid;
+    }
+
+    function isAdmin() {
+      return isSignedIn() && (
+        (request.auth.token.email == 'hohuyquanhtq@gmail.com' && request.auth.token.email_verified == true)
+        || request.auth.token.role == 'Admin'
+      );
+    }
+
+    function isEditorOrAdmin() {
+      return isSignedIn() && (
+        isAdmin()
+        || request.auth.token.role == 'Editor'
+      );
+    }
+
+    // Teacher avatars: public read for signed-in users, write strictly by owner (image <= 5MB)
+    match /avatars/{uid}/{fileName} {
+      allow read: if isSignedIn();
+      allow write: if (isOwner(uid) || isAdmin())
+        && request.resource != null
+        && request.resource.size <= 5 * 1024 * 1024
+        && request.resource.contentType.matches('image/(jpeg|png|webp)');
+      allow delete: if isOwner(uid) || isAdmin();
+    }
+
+    // Private speaking recordings & teacher attachments: strictly owner or Admin
+    match /userRecordings/{uid}/{fileName} {
+      allow read: if isOwner(uid) || isAdmin();
+      allow write: if (isOwner(uid) || isAdmin())
+        && request.resource != null
+        && request.resource.size <= 15 * 1024 * 1024
+        && request.resource.contentType.matches('audio/.*');
+      allow delete: if isOwner(uid) || isAdmin();
+    }
+
+    // Shared lesson assets: read by signed-in teachers, write strictly by Editor or Admin
+    match /lessonAssets/{lessonId}/{fileName} {
+      allow read: if isSignedIn();
+      allow write: if isEditorOrAdmin()
+        && request.resource != null
+        && request.resource.size <= 20 * 1024 * 1024
+        && request.resource.contentType.matches('(image/.*|application/pdf|audio/.*)');
+      allow delete: if isEditorOrAdmin();
+    }
+  }
+}

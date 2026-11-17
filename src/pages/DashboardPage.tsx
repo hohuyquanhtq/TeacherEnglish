@@ -71,11 +71,15 @@ export const DashboardPage: React.FC = () => {
     <div className="space-y-6">
       <PageHeader
         title={`Xin chào, ${session.isAuthenticated ? profile.fullName : 'Giáo viên'}`}
-        description={`${getSubjectLabel(profile.preferences.primarySubject)} · ${getStageLabel(
-          profile.preferences.schoolStage
-        )} (${formatGradesLabel(profile.preferences.grades)}) · Lộ trình ${
-          profile.preferences.currentLevel
-        } → ${profile.preferences.targetLevel}`}
+        description={`${Array.from(
+          new Set([profile.preferences.primarySubject, ...profile.preferences.secondarySubjects])
+        )
+          .map(getSubjectLabel)
+          .join(', ')} · ${getStageLabel(profile.preferences.schoolStage)} (${formatGradesLabel(
+          profile.preferences.grades
+        )}) · Lộ trình ${profile.preferences.currentLevel} → ${
+          profile.preferences.targetLevel
+        } · Quyền: ${profile.systemRole}`}
         actions={
           <>
             <Link

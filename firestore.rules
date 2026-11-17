@@ -1,0 +1,342 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Global safety net: default deny everything
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // -------------------------------------------------------------------------
+    // Global Hardened Primitives
+    // -------------------------------------------------------------------------
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() > 0 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isOwner(uid) {
+      return isSignedIn() && request.auth.uid == uid;
+    }
+
+    function isBootstrappedAdmin() {
+      return isSignedIn()
+        && request.auth.token.email == 'hohuyquanhtq@gmail.com'
+        && request.auth.token.email_verified == true;
+    }
+
+    function userDocExists() {
+      return exists(/databases/$(database)/documents/users/$(request.auth.uid));
+    }
+
+    function getUserRole() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role;
+    }
+
+    function hasAdminClaim() {
+      return isSignedIn() && ('role' in request.auth.token) && request.auth.token.role == 'Admin';
+    }
+
+    function hasEditorClaim() {
+      return isSignedIn() && ('role' in request.auth.token) && request.auth.token.role in ['Editor', 'Admin'];
+    }
+
+    function isAdmin() {
+      return isSignedIn() && (
+        isBootstrappedAdmin()
+        || hasAdminClaim()
+        || (userDocExists() && getUserRole() == 'Admin')
+      );
+    }
+
+    function isEditorOrAdmin() {
+      return isSignedIn() && (
+        isBootstrappedAdmin()
+        || hasEditorClaim()
+        || (userDocExists() && getUserRole() in ['Editor', 'Admin'])
+      );
+    }
+
+    // -------------------------------------------------------------------------
+    // Entity Validation Blueprints
+    // -------------------------------------------------------------------------
+    function isValidUserProfile(data, uid) {
+      return data.keys().hasAll([
+          'uid', 'fullName', 'email', 'role', 'subjects', 'grades',
+          'currentLevel', 'targetLevel', 'createdAt', 'updatedAt'
+        ])
+        && data.keys().hasOnly([
+          'uid', 'fullName', 'email', 'role', 'teacherPosition', 'schoolName',
+          'province', 'yearsOfExperience', 'bio', 'avatarUrl', 'primarySubject',
+          'subjects', 'schoolStage', 'grades', 'currentLevel', 'targetLevel',
+          'weeklyMinutesTarget', 'onboardingCompleted', 'createdAt', 'updatedAt'
+        ])
+        && data.uid == uid
+        && data.uid is string && data.uid.size() > 0 && data.uid.size() <= 128
+        && data.fullName is string && data.fullName.size() >= 1 && data.fullName.size() <= 120
+        && data.email is string && data.email.size() >= 3 && data.email.size() <= 200
+        && data.role in ['Teacher', 'Editor', 'Admin']
+        && (!('teacherPosition' in data) || (data.teacherPosition is string && data.teacherPosition.size() <= 80))
+        && (!('schoolName' in data) || (data.schoolName is string && data.schoolName.size() <= 200))
+        && (!('province' in data) || (data.province is string && data.province.size() <= 100))
+        && (!('yearsOfExperience' in data) || (data.yearsOfExperience is number && data.yearsOfExperience >= 0 && data.yearsOfExperience <= 60))
+        && (!('bio' in data) || (data.bio is string && data.bio.size() <= 1000))
+        && (!('avatarUrl' in data) || (data.avatarUrl is string && data.avatarUrl.size() <= 500))
+        && (!('primarySubject' in data) || (data.primarySubject is string && data.primarySubject.size() <= 50))
+        && data.subjects is list && data.subjects.size() >= 1 && data.subjects.size() <= 10
+        && data.subjects[0] is string && data.subjects[0].size() <= 50
+        && (!('schoolStage' in data) || data.schoolStage in ['tieuhoc', 'thcs', 'thpt'])
+        && data.grades is list && data.grades.size() >= 1 && data.grades.size() <= 12
+        && data.grades[0] is number
+        && data.currentLevel in ['A1', 'A2', 'B1', 'B2', 'C1', 'C2']
+        && data.targetLevel in ['A1', 'A2', 'B1', 'B2', 'C1', 'C2']
+        && (!('weeklyMinutesTarget' in data) || (data.weeklyMinutesTarget is number && data.weeklyMinutesTarget >= 30 && data.weeklyMinutesTarget <= 2000))
+        && (!('onboardingCompleted' in data) || data.onboardingCompleted is bool)
+        && data.createdAt is timestamp
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidSubject(data, subjectId) {
+      return data.keys().hasAll(['id', 'name', 'englishName', 'isActive', 'updatedAt'])
+        && data.keys().hasOnly(['id', 'name', 'englishName', 'group', 'isActive', 'updatedAt'])
+        && data.id == subjectId
+        && data.id is string && data.id.size() > 0 && data.id.size() <= 64
+        && data.name is string && data.name.size() >= 1 && data.name.size() <= 100
+        && data.englishName is string && data.englishName.size() >= 1 && data.englishName.size() <= 100
+        && (!('group' in data) || (data.group is string && data.group.size() <= 100))
+        && data.isActive is bool
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidLesson(data, lessonId) {
+      return data.keys().hasAll(['id', 'title', 'subjectId', 'level', 'durationMinutes', 'updatedAt'])
+        && data.keys().hasOnly([
+          'id', 'title', 'subjectId', 'subjectName', 'gradeLabel', 'level',
+          'durationMinutes', 'objectivesVi', 'objectivesEn', 'warmUpScriptEn',
+          'warmUpScriptVi', 'coverUrl', 'updatedAt'
+        ])
+        && data.id == lessonId
+        && data.id is string && data.id.size() > 0 && data.id.size() <= 128
+        && data.title is string && data.title.size() >= 1 && data.title.size() <= 200
+        && data.subjectId is string && data.subjectId.size() >= 1 && data.subjectId.size() <= 64
+        && (!('subjectName' in data) || (data.subjectName is string && data.subjectName.size() <= 100))
+        && (!('gradeLabel' in data) || (data.gradeLabel is string && data.gradeLabel.size() <= 50))
+        && data.level in ['A1', 'A2', 'B1', 'B2', 'C1', 'C2']
+        && data.durationMinutes is number && data.durationMinutes > 0 && data.durationMinutes <= 300
+        && (!('objectivesVi' in data) || (data.objectivesVi is list && data.objectivesVi.size() <= 20))
+        && (!('objectivesEn' in data) || (data.objectivesEn is list && data.objectivesEn.size() <= 20))
+        && (!('warmUpScriptEn' in data) || (data.warmUpScriptEn is string && data.warmUpScriptEn.size() <= 2000))
+        && (!('warmUpScriptVi' in data) || (data.warmUpScriptVi is string && data.warmUpScriptVi.size() <= 2000))
+        && (!('coverUrl' in data) || (data.coverUrl is string && data.coverUrl.size() <= 500))
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidClassroomEnglish(data, categoryId) {
+      return data.keys().hasAll(['id', 'situation', 'english', 'vietnamese', 'updatedAt'])
+        && data.keys().hasOnly(['id', 'situation', 'english', 'vietnamese', 'pronunciation', 'note', 'updatedAt'])
+        && data.id == categoryId
+        && data.id is string && data.id.size() > 0 && data.id.size() <= 128
+        && data.situation is string && data.situation.size() >= 1 && data.situation.size() <= 100
+        && data.english is string && data.english.size() >= 1 && data.english.size() <= 500
+        && data.vietnamese is string && data.vietnamese.size() >= 1 && data.vietnamese.size() <= 500
+        && (!('pronunciation' in data) || (data.pronunciation is string && data.pronunciation.size() <= 300))
+        && (!('note' in data) || (data.note is string && data.note.size() <= 500))
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidQuiz(data, quizId) {
+      return data.keys().hasAll(['id', 'title', 'category', 'questionCount', 'durationMinutes', 'updatedAt'])
+        && data.keys().hasOnly(['id', 'title', 'category', 'questionCount', 'durationMinutes', 'updatedAt'])
+        && data.id == quizId
+        && data.id is string && data.id.size() > 0 && data.id.size() <= 128
+        && data.title is string && data.title.size() >= 1 && data.title.size() <= 200
+        && data.category is string && data.category.size() >= 1 && data.category.size() <= 100
+        && data.questionCount is number && data.questionCount >= 1 && data.questionCount <= 200
+        && data.durationMinutes is number && data.durationMinutes >= 1 && data.durationMinutes <= 180
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidUserLibrary(data, uid) {
+      return data.keys().hasAll(['uid', 'savedIds', 'updatedAt'])
+        && data.keys().hasOnly(['uid', 'savedIds', 'updatedAt'])
+        && data.uid == uid
+        && data.uid is string && data.uid.size() > 0 && data.uid.size() <= 128
+        && data.savedIds is list && data.savedIds.size() <= 200
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidAiSession(data, uid) {
+      return data.keys().hasAll(['uid', 'messages', 'updatedAt'])
+        && data.keys().hasOnly(['uid', 'messages', 'updatedAt'])
+        && data.uid == uid
+        && data.uid is string && data.uid.size() > 0 && data.uid.size() <= 128
+        && data.messages is list && data.messages.size() <= 100
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidLearningRecord(data, uid) {
+      return data.keys().hasAll(['uid', 'goals', 'weeklyMinutes', 'updatedAt'])
+        && data.keys().hasOnly(['uid', 'goals', 'weeklyMinutes', 'completedModules', 'streakDays', 'quizScores', 'updatedAt'])
+        && data.uid == uid
+        && data.uid is string && data.uid.size() > 0 && data.uid.size() <= 128
+        && data.goals is list && data.goals.size() <= 30
+        && data.weeklyMinutes is number && data.weeklyMinutes >= 0 && data.weeklyMinutes <= 10080
+        && (!('completedModules' in data) || (data.completedModules is number && data.completedModules >= 0 && data.completedModules <= 500))
+        && (!('streakDays' in data) || (data.streakDays is number && data.streakDays >= 0 && data.streakDays <= 3650))
+        && (!('quizScores' in data) || data.quizScores is map)
+        && data.updatedAt is timestamp;
+    }
+
+    function isValidSystemSetting(data, settingId) {
+      return data.keys().hasAll(['id', 'platformName', 'allowSelfRegistration', 'updatedAt'])
+        && data.keys().hasOnly(['id', 'platformName', 'defaultTargetLevel', 'allowSelfRegistration', 'updatedAt'])
+        && data.id == settingId
+        && data.id is string && data.id.size() > 0 && data.id.size() <= 64
+        && data.platformName is string && data.platformName.size() >= 1 && data.platformName.size() <= 100
+        && (!('defaultTargetLevel' in data) || data.defaultTargetLevel in ['A1', 'A2', 'B1', 'B2', 'C1', 'C2'])
+        && data.allowSelfRegistration is bool
+        && data.updatedAt is timestamp;
+    }
+
+    // -------------------------------------------------------------------------
+    // Connection Healthcheck (single document)
+    // -------------------------------------------------------------------------
+    match /test/connection {
+      allow get: if true;
+      allow list, write: if false;
+    }
+
+    // -------------------------------------------------------------------------
+    // Collection Rules
+    // -------------------------------------------------------------------------
+    match /users/{uid} {
+      allow get: if isValidId(uid) && (isOwner(uid) || isAdmin());
+      allow list: if isAdmin();
+
+      // Users can create ONLY their own profile with default role = 'Teacher' (unless Admin)
+      allow create: if isValidId(uid)
+        && isValidUserProfile(incoming(), uid)
+        && incoming().createdAt == request.time
+        && incoming().updatedAt == request.time
+        && (
+          (isOwner(uid) && incoming().role == 'Teacher')
+          || isAdmin()
+        );
+
+      // Users can update ONLY their own profile/preferences, NEVER role/uid/createdAt/email
+      allow update: if isValidId(uid)
+        && isValidUserProfile(incoming(), uid)
+        && incoming().uid == existing().uid
+        && incoming().createdAt == existing().createdAt
+        && incoming().updatedAt == request.time
+        && (
+          (
+            isOwner(uid)
+            && incoming().role == existing().role
+            && incoming().email == existing().email
+            && incoming().diff(existing()).affectedKeys().hasOnly([
+              'fullName', 'teacherPosition', 'schoolName', 'province',
+              'yearsOfExperience', 'bio', 'avatarUrl', 'primarySubject',
+              'subjects', 'schoolStage', 'grades', 'currentLevel',
+              'targetLevel', 'weeklyMinutesTarget', 'onboardingCompleted', 'updatedAt'
+            ])
+          )
+          || isAdmin()
+        );
+
+      allow delete: if isValidId(uid) && isAdmin();
+    }
+
+    match /subjects/{subjectId} {
+      allow get: if isValidId(subjectId) && isSignedIn();
+      allow list: if isSignedIn();
+      allow create, update: if isValidId(subjectId)
+        && isValidSubject(incoming(), subjectId)
+        && incoming().updatedAt == request.time
+        && isEditorOrAdmin();
+      allow delete: if isValidId(subjectId) && isEditorOrAdmin();
+    }
+
+    match /lessons/{lessonId} {
+      allow get: if isValidId(lessonId) && isSignedIn();
+      allow list: if isSignedIn();
+      allow create, update: if isValidId(lessonId)
+        && isValidLesson(incoming(), lessonId)
+        && incoming().updatedAt == request.time
+        && isEditorOrAdmin();
+      allow delete: if isValidId(lessonId) && isEditorOrAdmin();
+    }
+
+    match /classroomEnglish/{categoryId} {
+      allow get: if isValidId(categoryId) && isSignedIn();
+      allow list: if isSignedIn();
+      allow create, update: if isValidId(categoryId)
+        && isValidClassroomEnglish(incoming(), categoryId)
+        && incoming().updatedAt == request.time
+        && isEditorOrAdmin();
+      allow delete: if isValidId(categoryId) && isEditorOrAdmin();
+    }
+
+    match /quizzes/{quizId} {
+      allow get: if isValidId(quizId) && isSignedIn();
+      allow list: if isSignedIn();
+      allow create, update: if isValidId(quizId)
+        && isValidQuiz(incoming(), quizId)
+        && incoming().updatedAt == request.time
+        && isEditorOrAdmin();
+      allow delete: if isValidId(quizId) && isEditorOrAdmin();
+    }
+
+    match /userLibrary/{uid} {
+      allow get: if isValidId(uid) && (isOwner(uid) || isAdmin());
+      allow list: if isAdmin();
+      allow create, update: if isValidId(uid)
+        && isValidUserLibrary(incoming(), uid)
+        && incoming().updatedAt == request.time
+        && (isOwner(uid) || isAdmin());
+      allow delete: if isValidId(uid) && (isOwner(uid) || isAdmin());
+    }
+
+    match /aiSessions/{uid} {
+      allow get: if isValidId(uid) && (isOwner(uid) || isAdmin());
+      allow list: if isAdmin();
+      allow create, update: if isValidId(uid)
+        && isValidAiSession(incoming(), uid)
+        && incoming().updatedAt == request.time
+        && (isOwner(uid) || isAdmin());
+      allow delete: if isValidId(uid) && (isOwner(uid) || isAdmin());
+    }
+
+    match /learningRecords/{uid} {
+      allow get: if isValidId(uid) && (isOwner(uid) || isAdmin());
+      allow list: if isAdmin();
+      allow create, update: if isValidId(uid)
+        && isValidLearningRecord(incoming(), uid)
+        && incoming().updatedAt == request.time
+        && (isOwner(uid) || isAdmin());
+      allow delete: if isValidId(uid) && (isOwner(uid) || isAdmin());
+    }
+
+    match /systemSettings/{settingId} {
+      allow get: if isValidId(settingId) && isSignedIn();
+      allow list: if isSignedIn();
+      allow create, update: if isValidId(settingId)
+        && isValidSystemSetting(incoming(), settingId)
+        && incoming().updatedAt == request.time
+        && isAdmin();
+      allow delete: if isValidId(settingId) && isAdmin();
+    }
+  }
+}

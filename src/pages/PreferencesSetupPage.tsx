@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Check, CheckCircle2, Save } from 'lucide-react';
+import { AlertCircle, Check, CheckCircle2, Save } from 'lucide-react';
 import { PageHeader } from '@/src/components/common/StateViews';
 import {
   ENGLISH_LEVEL_OPTIONS,
@@ -8,17 +8,17 @@ import {
   SUBJECT_OPTIONS,
 } from '@/src/config/curriculum';
 import { ROUTES } from '@/src/config/navigation';
-import { useAuth } from '@/src/hooks/useAuth';
+import { useAuth } from '@/src/hooks/authContext';
 import { EnglishLevel, SchoolStage, SubjectId } from '@/src/types';
 
 export const PreferencesSetupPage: React.FC = () => {
   const navigate = useNavigate();
   const { profile, updatePreferences } = useAuth();
 
-  const [primarySubject, setPrimarySubject] = useState<SubjectId>(profile.preferences.primarySubject);
-  const [secondarySubjects, setSecondarySubjects] = useState<SubjectId[]>(
-    profile.preferences.secondarySubjects
-  );
+  const [selectedSubjects, setSelectedSubjects] = useState<SubjectId[]>([
+    profile.preferences.primarySubject,
+    ...profile.preferences.secondarySubjects,
+  ]);
   const [schoolStage, setSchoolStage] = useState<SchoolStage>(profile.preferences.schoolStage);
   const [grades, setGrades] = useState<number[]>(profile.preferences.grades);
   const [currentLevel, setCurrentLevel] = useState<EnglishLevel>(profile.preferences.currentLevel);
@@ -26,17 +26,30 @@ export const PreferencesSetupPage: React.FC = () => {
   const [weeklyMinutesTarget, setWeeklyMinutesTarget] = useState<number>(
     profile.preferences.weeklyMinutesTarget
   );
+  const [isSaving, setIsSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [errorMsg, setErrorMsg] = useState('');
 
-  const activeStageOption =
-    SCHOOL_STAGE_OPTIONS.find((item) => item.id === schoolStage) ?? SCHOOL_STAGE_OPTIONS[2];
+  useEffect(() => {
+    setSelectedSubjects(
+      Array.from(
+        new Set([profile.preferences.primarySubject, ...profile.preferences.secondarySubjects])
+      )
+    );
+    setSchoolStage(profile.preferences.schoolStage);
+    setGrades(profile.preferences.grades);
+    setCurrentLevel(profile.preferences.currentLevel);
+    setTargetLevel(profile.preferences.targetLevel);
+    setWeeklyMinutesTarget(profile.preferences.weeklyMinutesTarget);
+  }, [profile]);
 
-  const handleStageChange = (nextStage: SchoolStage) => {
-    setSchoolStage(nextStage);
-    const stageDef = SCHOOL_STAGE_OPTIONS.find((item) => item.id === nextStage);
-    if (stageDef) {
-      setGrades([stageDef.grades[0]]);
-    }
+  const toggleSubject = (subjectId: SubjectId) => {
+    setSelectedSubjects((prev) => {
+      if (prev.includes(subjectId)) {
+        return prev.length > 1 ? prev.filter((id) => id !== subjectId) : prev;
+      }
+      return [...prev, subjectId];
+    });
   };
 
   const toggleGrade = (grade: number) => {
@@ -48,39 +61,61 @@ export const PreferencesSetupPage: React.FC = () => {
     });
   };
 
-  const toggleSecondarySubject = (subjectId: SubjectId) => {
-    if (subjectId === primarySubject) return;
-    setSecondarySubjects((prev) =>
-      prev.includes(subjectId) ? prev.filter((id) => id !== subjectId) : [...prev, subjectId]
-    );
+  const handleStageSelect = (nextStage: SchoolStage) => {
+    setSchoolStage(nextStage);
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    updatePreferences({
-      primarySubject,
-      secondarySubjects: secondarySubjects.filter((id) => id !== primarySubject),
-      schoolStage,
-      grades,
-      currentLevel,
-      targetLevel,
-      weeklyMinutesTarget,
-    });
-    setSaved(true);
+    setErrorMsg('');
+    setSaved(false);
+    setIsSaving(true);
+
+    const primarySubject = selectedSubjects[0] ?? 'physics';
+    const secondarySubjects = selectedSubjects.slice(1);
+
+    try {
+      await updatePreferences({
+        primarySubject,
+        secondarySubjects,
+        schoolStage,
+        grades,
+        currentLevel,
+        targetLevel,
+        weeklyMinutesTarget,
+      });
+      setSaved(true);
+    } catch (error) {
+      setErrorMsg(
+        error instanceof Error ? error.message : 'Không thể lưu cấu hình lên Firestore.'
+      );
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   return (
     <div className="space-y-6">
       <PageHeader
         title="Chọn môn học, khối lớp và trình độ tiếng Anh"
-        description="Lựa chọn này giúp Teacher English đề xuất đúng thuật ngữ chuyên ngành, mẫu câu lớp học và lộ trình nâng chuẩn CEFR."
+        description="Cho phép chọn nhiều môn học, nhiều khối lớp và lưu trình độ CEFR trực tiếp vào hồ sơ Firestore của bạn."
       />
+
+      {errorMsg ? (
+        <div
+          role="alert"
+          className="p-4 bg-red-50 border border-red-200 rounded-xl flex items-center gap-2.5 text-sm text-red-800"
+        >
+          <AlertCircle className="w-5 h-5 text-red-600 shrink-0" />
+          <span>{errorMsg}</span>
+        </div>
+      ) : null}
 
       {saved ? (
         <div className="p-4 bg-emerald-50 border border-emerald-200 rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-3">
           <div className="flex items-center gap-2.5 text-sm font-medium text-emerald-900">
             <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0" />
-            <span>Đã cập nhật cấu hình môn học, khối lớp và trình độ tiếng Anh.</span>
+            <span>Đã lưu danh sách môn học, khối lớp và trình độ tiếng Anh vào Firestore.</span>
           </div>
           <button
             type="button"
@@ -93,41 +128,44 @@ export const PreferencesSetupPage: React.FC = () => {
       ) : null}
 
       <form onSubmit={handleSubmit} className="space-y-6">
-        {/* Section 1: Subject selection */}
+        {/* Section 1: Multi-subject selection */}
         <section className="bg-white border border-slate-200 rounded-xl p-6 space-y-5">
           <div>
             <h2 className="text-base font-semibold text-slate-900">
-              1. Môn học giảng dạy chính &amp; môn liên quan
+              1. Chọn các môn học giảng dạy ({selectedSubjects.length} môn đã chọn)
             </h2>
             <p className="text-sm text-slate-600 mt-0.5">
-              Chọn 1 môn học trọng tâm để ưu tiên học liệu chuyên ngành.
+              Bạn có thể chọn một hoặc nhiều môn học liên quan; môn đầu tiên được dùng làm môn trọng tâm.
             </p>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
             {SUBJECT_OPTIONS.map((subject) => {
-              const isPrimary = primarySubject === subject.id;
+              const isSelected = selectedSubjects.includes(subject.id);
+              const isPrimary = selectedSubjects[0] === subject.id;
               return (
                 <button
                   key={subject.id}
                   type="button"
-                  onClick={() => {
-                    setPrimarySubject(subject.id);
-                    setSecondarySubjects((prev) => prev.filter((id) => id !== subject.id));
-                  }}
+                  onClick={() => toggleSubject(subject.id)}
                   className={`p-4 rounded-xl border text-left transition-colors flex items-start justify-between gap-3 ${
-                    isPrimary
+                    isSelected
                       ? 'border-blue-600 bg-blue-50/70'
                       : 'border-slate-200 bg-white hover:bg-slate-50'
                   }`}
                 >
                   <div>
-                    <p className="text-sm font-semibold text-slate-900">{subject.name}</p>
+                    <p className="text-sm font-semibold text-slate-900">
+                      {subject.name}
+                      {isPrimary ? (
+                        <span className="ml-2 text-xs font-medium text-blue-700">· Trọng tâm</span>
+                      ) : null}
+                    </p>
                     <p className="text-xs text-slate-500 mt-0.5">
                       {subject.englishName} · {subject.group}
                     </p>
                   </div>
-                  {isPrimary ? (
+                  {isSelected ? (
                     <span className="w-5 h-5 rounded-full bg-blue-700 text-white flex items-center justify-center shrink-0">
                       <Check className="w-3.5 h-3.5" />
                     </span>
@@ -136,39 +174,16 @@ export const PreferencesSetupPage: React.FC = () => {
               );
             })}
           </div>
-
-          <div className="pt-4 border-t border-slate-200">
-            <p className="text-sm font-medium text-slate-800 mb-2.5">
-              Môn học bổ trợ muốn xem thêm (tùy chọn)
-            </p>
-            <div className="flex flex-wrap gap-2">
-              {SUBJECT_OPTIONS.filter((s) => s.id !== primarySubject).map((subject) => {
-                const selected = secondarySubjects.includes(subject.id);
-                return (
-                  <button
-                    key={subject.id}
-                    type="button"
-                    onClick={() => toggleSecondarySubject(subject.id)}
-                    className={`min-h-10 px-3.5 py-2 rounded-lg text-xs font-medium border transition-colors whitespace-nowrap ${
-                      selected
-                        ? 'bg-slate-900 text-white border-slate-900'
-                        : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'
-                    }`}
-                  >
-                    {subject.name}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
         </section>
 
-        {/* Section 2: School Stage & Grades */}
+        {/* Section 2: School Stage & Multi-grade selection */}
         <section className="bg-white border border-slate-200 rounded-xl p-6 space-y-5">
           <div>
-            <h2 className="text-base font-semibold text-slate-900">2. Cấp học &amp; Khối lớp phụ trách</h2>
+            <h2 className="text-base font-semibold text-slate-900">
+              2. Cấp học chính &amp; Chọn nhiều khối lớp phụ trách ({grades.length} khối đã chọn)
+            </h2>
             <p className="text-sm text-slate-600 mt-0.5">
-              Chọn cấp học và các khối lớp bạn đang trực tiếp đứng lớp.
+              Chọn cấp học chính và bật/tắt bất kỳ khối lớp nào từ Lớp 1 đến Lớp 12 mà bạn trực tiếp giảng dạy.
             </p>
           </div>
 
@@ -179,7 +194,7 @@ export const PreferencesSetupPage: React.FC = () => {
                 <button
                   key={stage.id}
                   type="button"
-                  onClick={() => handleStageChange(stage.id)}
+                  onClick={() => handleStageSelect(stage.id)}
                   className={`p-4 rounded-xl border text-left transition-colors ${
                     active
                       ? 'border-blue-600 bg-blue-50/70'
@@ -193,27 +208,31 @@ export const PreferencesSetupPage: React.FC = () => {
             })}
           </div>
 
-          <div className="pt-2">
-            <p className="text-sm font-medium text-slate-800 mb-2.5">Chọn khối lớp giảng dạy</p>
-            <div className="flex flex-wrap gap-2.5">
-              {activeStageOption.grades.map((grade) => {
-                const isSelected = grades.includes(grade);
-                return (
-                  <button
-                    key={grade}
-                    type="button"
-                    onClick={() => toggleGrade(grade)}
-                    className={`min-h-10 min-w-[84px] px-4 py-2 rounded-lg text-sm font-medium border transition-colors tabular-nums ${
-                      isSelected
-                        ? 'bg-blue-700 text-white border-blue-700'
-                        : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'
-                    }`}
-                  >
-                    Lớp {grade}
-                  </button>
-                );
-              })}
-            </div>
+          <div className="pt-2 space-y-3">
+            {SCHOOL_STAGE_OPTIONS.map((stage) => (
+              <div key={stage.id} className="space-y-2">
+                <p className="text-xs font-semibold text-slate-600">{stage.label}</p>
+                <div className="flex flex-wrap gap-2">
+                  {stage.grades.map((grade) => {
+                    const isSelected = grades.includes(grade);
+                    return (
+                      <button
+                        key={grade}
+                        type="button"
+                        onClick={() => toggleGrade(grade)}
+                        className={`min-h-10 min-w-[80px] px-3.5 py-2 rounded-lg text-sm font-medium border transition-colors tabular-nums ${
+                          isSelected
+                            ? 'bg-blue-700 text-white border-blue-700'
+                            : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50'
+                        }`}
+                      >
+                        Lớp {grade}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
           </div>
         </section>
 
@@ -295,10 +314,11 @@ export const PreferencesSetupPage: React.FC = () => {
           </Link>
           <button
             type="submit"
-            className="min-h-11 px-5 py-2.5 inline-flex items-center gap-2 text-sm font-semibold text-white bg-blue-700 hover:bg-blue-800 rounded-lg transition-colors"
+            disabled={isSaving}
+            className="min-h-11 px-5 py-2.5 inline-flex items-center gap-2 text-sm font-semibold text-white bg-blue-700 hover:bg-blue-800 disabled:opacity-60 rounded-lg transition-colors"
           >
             <Save className="w-4 h-4" />
-            <span>Lưu cấu hình học tập</span>
+            <span>{isSaving ? 'Đang lưu...' : 'Lưu cấu hình học tập'}</span>
           </button>
         </div>
       </form>

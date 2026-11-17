@@ -1,161 +1,131 @@
-import { ASSETS } from '@/src/config/curriculum';
-import { AuthSession, TeacherPreferences, TeacherProfile, TeacherRole } from '@/src/types';
-import { storage } from '@/src/utils/storage';
+import {
+  createUserWithEmailAndPassword,
+  getIdTokenResult,
+  sendEmailVerification,
+  sendPasswordResetEmail,
+  signInWithEmailAndPassword,
+  signInWithPopup,
+  signOut,
+  updateProfile,
+  type User,
+} from 'firebase/auth';
+import { auth, googleProvider } from '@/src/config/firebase';
+import { userService } from '@/src/services/userService';
+import { SystemRole, TeacherRole } from '@/src/types';
 
-const AUTH_STORAGE_KEY = 'teacher_english_session_v1';
-const PROFILE_STORAGE_KEY = 'teacher_english_profile_v1';
+export function mapFirebaseAuthError(error: unknown): string {
+  const code =
+    typeof error === 'object' && error !== null && 'code' in error
+      ? String((error as { code: unknown }).code)
+      : '';
 
-const DEFAULT_PROFILE: TeacherProfile = {
-  id: 'gv-001',
-  fullName: 'Nguyễn Minh Anh',
-  email: 'minhanh.nguyen@thpt-lequydon.edu.vn',
-  schoolName: 'Trường THPT Lê Quý Đôn',
-  province: 'TP. Hồ Chí Minh',
-  yearsOfExperience: 6,
-  role: 'Giáo viên bộ môn',
-  bio: 'Giáo viên Vật lý định hướng giảng dạy song ngữ cho khối lớp chuyên và lớp tích hợp.',
-  avatarUrl: ASSETS.TEACHER_AVATAR,
-  onboardingCompleted: true,
-  preferences: {
-    primarySubject: 'physics',
-    secondarySubjects: ['math', 'science'],
-    schoolStage: 'thpt',
-    grades: [10, 11],
-    currentLevel: 'B1',
-    targetLevel: 'B2',
-    weeklyMinutesTarget: 180,
-  },
-};
-
-const DEFAULT_SESSION: AuthSession = {
-  isAuthenticated: true,
-  userId: DEFAULT_PROFILE.id,
-  fullName: DEFAULT_PROFILE.fullName,
-  email: DEFAULT_PROFILE.email,
-  role: DEFAULT_PROFILE.role,
-};
+  switch (code) {
+    case 'auth/operation-not-allowed':
+      return 'Phương thức đăng nhập Email/Mật khẩu chưa được bật trong Firebase Console (Authentication → Sign-in method). Bạn có thể bật trong Console hoặc dùng Đăng nhập bằng Google.';
+    case 'auth/email-already-in-use':
+      return 'Email này đã được đăng ký tài khoản. Vui lòng đăng nhập hoặc sử dụng tính năng Quên mật khẩu.';
+    case 'auth/invalid-email':
+      return 'Địa chỉ email không đúng định dạng.';
+    case 'auth/weak-password':
+      return 'Mật khẩu quá yếu. Vui lòng chọn mật khẩu từ 6 ký tự trở lên.';
+    case 'auth/invalid-credential':
+    case 'auth/wrong-password':
+    case 'auth/user-not-found':
+      return 'Email hoặc mật khẩu không chính xác.';
+    case 'auth/too-many-requests':
+      return 'Quá nhiều lần thử thất bại. Vui lòng đợi vài phút rồi thử lại.';
+    case 'auth/popup-closed-by-user':
+      return 'Cửa sổ đăng nhập Google đã bị đóng trước khi hoàn tất.';
+    case 'auth/network-request-failed':
+      return 'Lỗi kết nối mạng tới máy chủ Firebase. Vui lòng kiểm tra kết nối Internet.';
+    default:
+      return error instanceof Error
+        ? error.message
+        : 'Đã xảy ra lỗi xác thực. Vui lòng thử lại.';
+  }
+}
 
 export const authService = {
-  getSession(): AuthSession {
-    return storage.get<AuthSession>(AUTH_STORAGE_KEY, DEFAULT_SESSION);
-  },
-
-  getProfile(): TeacherProfile {
-    return storage.get<TeacherProfile>(PROFILE_STORAGE_KEY, DEFAULT_PROFILE);
-  },
-
-  login(email: string, _password: string): { session: AuthSession; profile: TeacherProfile } {
-    const existingProfile = this.getProfile();
-    const normalizedName =
-      existingProfile.email.toLowerCase() === email.trim().toLowerCase()
-        ? existingProfile.fullName
-        : email.split('@')[0]?.replace(/[._-]/g, ' ') || 'Giáo viên mới';
-
-    const titleCasedName = normalizedName
-      .split(' ')
-      .filter(Boolean)
-      .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-      .join(' ');
-
-    const nextProfile: TeacherProfile = {
-      ...existingProfile,
-      email: email.trim(),
-      fullName:
-        existingProfile.email.toLowerCase() === email.trim().toLowerCase()
-          ? existingProfile.fullName
-          : titleCasedName,
-    };
-
-    const nextSession: AuthSession = {
-      isAuthenticated: true,
-      userId: nextProfile.id,
-      fullName: nextProfile.fullName,
-      email: nextProfile.email,
-      role: nextProfile.role,
-    };
-
-    storage.set(PROFILE_STORAGE_KEY, nextProfile);
-    storage.set(AUTH_STORAGE_KEY, nextSession);
-    return { session: nextSession, profile: nextProfile };
-  },
-
-  register(payload: {
+  async registerWithEmail(payload: {
     fullName: string;
     email: string;
-    role: TeacherRole;
+    password: string;
     schoolName: string;
-  }): { session: AuthSession; profile: TeacherProfile } {
-    const current = this.getProfile();
-    const nextProfile: TeacherProfile = {
-      ...current,
-      id: `gv-${Date.now().toString().slice(-4)}`,
-      fullName: payload.fullName.trim(),
-      email: payload.email.trim(),
-      role: payload.role,
-      schoolName: payload.schoolName.trim() || 'Chưa cập nhật đơn vị',
-      onboardingCompleted: false,
-    };
+    teacherPosition: TeacherRole;
+  }): Promise<User> {
+    const credential = await createUserWithEmailAndPassword(
+      auth,
+      payload.email.trim(),
+      payload.password
+    );
 
-    const nextSession: AuthSession = {
-      isAuthenticated: true,
-      userId: nextProfile.id,
-      fullName: nextProfile.fullName,
-      email: nextProfile.email,
-      role: nextProfile.role,
-    };
+    await updateProfile(credential.user, {
+      displayName: payload.fullName.trim(),
+    });
 
-    storage.set(PROFILE_STORAGE_KEY, nextProfile);
-    storage.set(AUTH_STORAGE_KEY, nextSession);
-    return { session: nextSession, profile: nextProfile };
-  },
+    await userService.createInitialProfile(credential.user, {
+      fullName: payload.fullName,
+      schoolName: payload.schoolName,
+      teacherPosition: payload.teacherPosition,
+    });
 
-  updateProfile(partial: Partial<TeacherProfile>): TeacherProfile {
-    const current = this.getProfile();
-    const updated: TeacherProfile = {
-      ...current,
-      ...partial,
-      onboardingCompleted: true,
-    };
-    storage.set(PROFILE_STORAGE_KEY, updated);
-
-    const session = this.getSession();
-    if (session.isAuthenticated) {
-      storage.set(AUTH_STORAGE_KEY, {
-        ...session,
-        fullName: updated.fullName,
-        email: updated.email,
-        role: updated.role,
-      });
+    // Optional email verification link (non-blocking)
+    try {
+      await sendEmailVerification(credential.user);
+    } catch {
+      // Non-fatal if verification mail cannot be sent immediately
     }
-    return updated;
+
+    return credential.user;
   },
 
-  updatePreferences(preferences: TeacherPreferences): TeacherProfile {
-    const current = this.getProfile();
-    const updated: TeacherProfile = {
-      ...current,
-      preferences,
-      onboardingCompleted: true,
-    };
-    storage.set(PROFILE_STORAGE_KEY, updated);
-    return updated;
+  async loginWithEmail(email: string, password: string): Promise<User> {
+    const credential = await signInWithEmailAndPassword(auth, email.trim(), password);
+    await userService.ensureUserProfile(credential.user);
+    return credential.user;
   },
 
-  logout(): AuthSession {
-    const loggedOut: AuthSession = {
-      isAuthenticated: false,
-      userId: '',
-      fullName: 'Khách',
-      email: '',
-      role: 'Giáo viên bộ môn',
-    };
-    storage.set(AUTH_STORAGE_KEY, loggedOut);
-    return loggedOut;
+  async loginWithGoogle(): Promise<User> {
+    const credential = await signInWithPopup(auth, googleProvider);
+    await userService.ensureUserProfile(credential.user);
+    return credential.user;
   },
 
-  resetToDemo(): { session: AuthSession; profile: TeacherProfile } {
-    storage.set(PROFILE_STORAGE_KEY, DEFAULT_PROFILE);
-    storage.set(AUTH_STORAGE_KEY, DEFAULT_SESSION);
-    return { session: DEFAULT_SESSION, profile: DEFAULT_PROFILE };
+  async sendPasswordReset(email: string): Promise<void> {
+    await sendPasswordResetEmail(auth, email.trim());
+  },
+
+  async logout(): Promise<void> {
+    await signOut(auth);
+  },
+
+  async resolveSystemRole(user: User, firestoreRole?: SystemRole): Promise<SystemRole> {
+    try {
+      const tokenResult = await getIdTokenResult(user);
+      const claimRole = tokenResult.claims.role;
+      if (claimRole === 'Admin' || claimRole === 'Editor' || claimRole === 'Teacher') {
+        return claimRole;
+      }
+    } catch {
+      // Fallback to verified backend check below
+    }
+
+    // Also verify token with backend endpoint
+    try {
+      const idToken = await user.getIdToken();
+      const res = await fetch('/api/auth/me', {
+        headers: { Authorization: `Bearer ${idToken}` },
+      });
+      if (res.ok) {
+        const data = (await res.json()) as { role?: SystemRole };
+        if (data.role === 'Admin' || data.role === 'Editor' || data.role === 'Teacher') {
+          return data.role;
+        }
+      }
+    } catch {
+      // Ignore network hiccup
+    }
+
+    return firestoreRole ?? 'Teacher';
   },
 };

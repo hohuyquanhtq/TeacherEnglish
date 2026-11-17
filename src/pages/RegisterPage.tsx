@@ -3,21 +3,23 @@ import { Link, useNavigate } from 'react-router-dom';
 import { UserPlus } from 'lucide-react';
 import { TEACHER_ROLES } from '@/src/config/curriculum';
 import { ROUTES } from '@/src/config/navigation';
-import { useAuth } from '@/src/hooks/useAuth';
+import { useAuth } from '@/src/hooks/authContext';
+import { mapFirebaseAuthError } from '@/src/services/authService';
 import { TeacherRole } from '@/src/types';
 
 export const RegisterPage: React.FC = () => {
   const navigate = useNavigate();
-  const { register } = useAuth();
+  const { register, loginWithGoogle } = useAuth();
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
   const [schoolName, setSchoolName] = useState('');
   const [role, setRole] = useState<TeacherRole>('Giáo viên bộ môn');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!fullName.trim() || !email.trim() || !password) {
       setErrorMessage('Vui lòng điền đầy đủ họ tên, email và mật khẩu.');
@@ -33,8 +35,28 @@ export const RegisterPage: React.FC = () => {
     }
 
     setErrorMessage('');
-    register({ fullName, email, role, schoolName });
-    navigate(ROUTES.PROFILE_SETUP);
+    setIsSubmitting(true);
+    try {
+      await register({ fullName, email, password, role, schoolName });
+      navigate(ROUTES.PROFILE_SETUP, { replace: true });
+    } catch (error) {
+      setErrorMessage(mapFirebaseAuthError(error));
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleGoogleSignUp = async () => {
+    setErrorMessage('');
+    setIsSubmitting(true);
+    try {
+      await loginWithGoogle();
+      navigate(ROUTES.PROFILE_SETUP, { replace: true });
+    } catch (error) {
+      setErrorMessage(mapFirebaseAuthError(error));
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   return (
@@ -42,7 +64,7 @@ export const RegisterPage: React.FC = () => {
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-slate-900">Đăng ký tài khoản giáo viên</h1>
         <p className="mt-1.5 text-sm text-slate-600">
-          Tạo hồ sơ học tập cá nhân hóa theo môn học và cấp lớp bạn đang giảng dạy.
+          Tài khoản mới được tạo qua Firebase Authentication và cấp quyền mặc định Teacher trong Firestore.
         </p>
       </div>
 
@@ -74,7 +96,7 @@ export const RegisterPage: React.FC = () => {
 
           <div>
             <label htmlFor="reg-role" className="block text-sm font-medium text-slate-700 mb-1.5">
-              Vai trò chuyên môn
+              Chức danh giảng dạy
             </label>
             <select
               id="reg-role"
@@ -154,19 +176,31 @@ export const RegisterPage: React.FC = () => {
 
         <button
           type="submit"
-          className="w-full min-h-11 px-4 py-2.5 inline-flex items-center justify-center gap-2 text-sm font-semibold text-white bg-blue-700 hover:bg-blue-800 rounded-lg transition-colors"
+          disabled={isSubmitting}
+          className="w-full min-h-11 px-4 py-2.5 inline-flex items-center justify-center gap-2 text-sm font-semibold text-white bg-blue-700 hover:bg-blue-800 disabled:opacity-60 rounded-lg transition-colors"
         >
           <UserPlus className="w-4 h-4" />
-          <span>Đăng ký &amp; Thiết lập hồ sơ</span>
+          <span>{isSubmitting ? 'Đang tạo tài khoản...' : 'Đăng ký & Tạo hồ sơ Firestore'}</span>
         </button>
       </form>
 
-      <p className="mt-5 text-center text-sm text-slate-600">
-        Đã có tài khoản?{' '}
-        <Link to={ROUTES.LOGIN} className="font-semibold text-blue-700 hover:underline">
-          Đăng nhập tại đây
-        </Link>
-      </p>
+      <div className="mt-4 pt-4 border-t border-slate-200 space-y-3">
+        <button
+          type="button"
+          onClick={handleGoogleSignUp}
+          disabled={isSubmitting}
+          className="w-full min-h-11 px-4 py-2.5 text-sm font-medium text-slate-800 bg-white border border-slate-300 hover:bg-slate-50 disabled:opacity-60 rounded-lg transition-colors"
+        >
+          Đăng ký nhanh bằng tài khoản Google
+        </button>
+
+        <p className="text-center text-sm text-slate-600">
+          Đã có tài khoản?{' '}
+          <Link to={ROUTES.LOGIN} className="font-semibold text-blue-700 hover:underline">
+            Đăng nhập tại đây
+          </Link>
+        </p>
+      </div>
     </div>
   );
 };

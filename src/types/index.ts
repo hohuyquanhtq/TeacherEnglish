@@ -1,3 +1,5 @@
+export type SystemRole = 'Teacher' | 'Editor' | 'Admin';
+
 export type EnglishLevel = 'A1' | 'A2' | 'B1' | 'B2' | 'C1' | 'C2';
 
 export type SchoolStage = 'tieuhoc' | 'thcs' | 'thpt';
@@ -38,10 +40,34 @@ export interface TeacherProfile {
   province: string;
   yearsOfExperience: number;
   role: TeacherRole;
+  systemRole: SystemRole;
   bio: string;
   avatarUrl: string;
   preferences: TeacherPreferences;
   onboardingCompleted: boolean;
+}
+
+export interface FirestoreUserProfile {
+  uid: string;
+  fullName: string;
+  email: string;
+  role: SystemRole;
+  teacherPosition?: TeacherRole;
+  schoolName?: string;
+  province?: string;
+  yearsOfExperience?: number;
+  bio?: string;
+  avatarUrl?: string;
+  primarySubject?: SubjectId;
+  subjects: SubjectId[];
+  schoolStage?: SchoolStage;
+  grades: number[];
+  currentLevel: EnglishLevel;
+  targetLevel: EnglishLevel;
+  weeklyMinutesTarget?: number;
+  onboardingCompleted?: boolean;
+  createdAt?: unknown;
+  updatedAt?: unknown;
 }
 
 export interface AuthSession {
@@ -50,6 +76,7 @@ export interface AuthSession {
   fullName: string;
   email: string;
   role: TeacherRole;
+  systemRole: SystemRole;
 }
 
 export type NavIconKey =
@@ -123,7 +150,12 @@ export interface RoadmapModule {
 
 export interface ClassroomPhrase {
   id: string;
-  situation: 'Mở đầu tiết học' | 'Giao nhiệm vụ' | 'Quản lý lớp' | 'Khen ngợi & Phản hồi' | 'Kết thúc bài';
+  situation:
+    | 'Mở đầu tiết học'
+    | 'Giao nhiệm vụ'
+    | 'Quản lý lớp'
+    | 'Khen ngợi & Phản hồi'
+    | 'Kết thúc bài';
   english: string;
   vietnamese: string;
   pronunciation: string;
@@ -203,4 +235,5 @@ export interface AdminMemberRecord {
   level: EnglishLevel;
   completionRate: number;
   accountStatus: 'Đang hoạt động' | 'Chờ duyệt';
+  systemRole?: SystemRole;
 }
