@@ -8,6 +8,7 @@ import {
   CheckSquare,
   ChevronLeft,
   ChevronRight,
+  FileEdit,
   FolderHeart,
   GraduationCap,
   LayoutDashboard,
@@ -19,6 +20,7 @@ import {
   X,
 } from 'lucide-react';
 import { ROUTES, SIDEBAR_NAV_ITEMS } from '@/src/config/navigation';
+import { useAuth } from '@/src/hooks/authContext';
 import { NavIconKey } from '@/src/types';
 
 interface SidebarProps {
@@ -40,6 +42,7 @@ const ICON_MAP: Record<NavIconKey, React.FC<{ className?: string }>> = {
   assessments: CheckSquare,
   library: FolderHeart,
   reports: BarChart3,
+  editor: FileEdit,
   admin: Settings2,
 };
 
@@ -49,42 +52,69 @@ export const Sidebar: React.FC<SidebarProps> = ({
   onToggleCollapse,
   onCloseMobile,
 }) => {
+  const { role, accountStatus } = useAuth();
+  const isApproved = accountStatus === 'approved';
+
+  const visibleItems = SIDEBAR_NAV_ITEMS.filter((item) => {
+    if (!isApproved) return false;
+    if (item.roles && !item.roles.includes(role)) return false;
+    return true;
+  });
+
+  const learningItems = visibleItems.filter((item) => item.section !== 'management');
+  const managementItems = visibleItems.filter((item) => item.section === 'management');
+
+  const renderItem = (item: (typeof SIDEBAR_NAV_ITEMS)[number], collapsedMode: boolean) => {
+    const Icon = ICON_MAP[item.icon];
+    return (
+      <NavLink
+        key={item.id}
+        to={item.path}
+        end={item.path === ROUTES.DASHBOARD}
+        onClick={onCloseMobile}
+        title={collapsedMode ? item.label : undefined}
+        className={({ isActive }) =>
+          [
+            'flex items-center gap-3 rounded-lg min-h-10 px-3 py-2.5 text-sm font-medium transition-colors',
+            collapsedMode ? 'justify-center px-2' : '',
+            isActive
+              ? 'bg-blue-50 text-blue-800'
+              : 'text-slate-700 hover:bg-slate-100 hover:text-slate-900',
+          ].join(' ')
+        }
+      >
+        {({ isActive }) => (
+          <>
+            <Icon
+              className={`w-[18px] h-[18px] shrink-0 ${
+                isActive ? 'text-blue-700' : 'text-slate-500'
+              }`}
+            />
+            {!collapsedMode ? (
+              <span className="truncate whitespace-nowrap">{item.label}</span>
+            ) : null}
+          </>
+        )}
+      </NavLink>
+    );
+  };
+
   const renderNavList = (collapsedMode: boolean) => (
-    <nav className="flex-1 overflow-y-auto px-3 py-4 space-y-1" aria-label="Điều hướng chính">
-      {SIDEBAR_NAV_ITEMS.map((item) => {
-        const Icon = ICON_MAP[item.icon];
-        return (
-          <NavLink
-            key={item.id}
-            to={item.path}
-            end={item.path === ROUTES.DASHBOARD}
-            onClick={onCloseMobile}
-            title={collapsedMode ? item.label : undefined}
-            className={({ isActive }) =>
-              [
-                'flex items-center gap-3 rounded-lg min-h-10 px-3 py-2.5 text-sm font-medium transition-colors',
-                collapsedMode ? 'justify-center px-2' : '',
-                isActive
-                  ? 'bg-blue-50 text-blue-800'
-                  : 'text-slate-700 hover:bg-slate-100 hover:text-slate-900',
-              ].join(' ')
-            }
-          >
-            {({ isActive }) => (
-              <>
-                <Icon
-                  className={`w-[18px] h-[18px] shrink-0 ${
-                    isActive ? 'text-blue-700' : 'text-slate-500'
-                  }`}
-                />
-                {!collapsedMode ? (
-                  <span className="truncate whitespace-nowrap">{item.label}</span>
-                ) : null}
-              </>
-            )}
-          </NavLink>
-        );
-      })}
+    <nav className="flex-1 overflow-y-auto px-3 py-4 space-y-4" aria-label="Điều hướng chính">
+      <div className="space-y-1">
+        {learningItems.map((item) => renderItem(item, collapsedMode))}
+      </div>
+
+      {managementItems.length > 0 ? (
+        <div className="pt-3 border-t border-slate-200 space-y-1">
+          {!collapsedMode ? (
+            <p className="px-3 pb-1 text-xs font-semibold text-slate-500">
+              {role === 'admin' ? 'Quản trị hệ thống' : 'Không gian biên tập'}
+            </p>
+          ) : null}
+          {managementItems.map((item) => renderItem(item, collapsedMode))}
+        </div>
+      ) : null}
     </nav>
   );
 

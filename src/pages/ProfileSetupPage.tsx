@@ -6,7 +6,7 @@ import { PageHeader } from '@/src/components/common/StateViews';
 import { TEACHER_ROLES, VIETNAM_PROVINCES } from '@/src/config/curriculum';
 import { ROUTES } from '@/src/config/navigation';
 import { useAuth } from '@/src/hooks/authContext';
-import { TeacherRole } from '@/src/types';
+import { TeacherRole, formatSystemRoleLabel } from '@/src/types';
 
 export const ProfileSetupPage: React.FC = () => {
   const navigate = useNavigate();
@@ -111,10 +111,14 @@ export const ProfileSetupPage: React.FC = () => {
           <div>
             <h2 className="text-base font-semibold text-slate-900">{fullName || 'Giáo viên'}</h2>
             <p className="text-sm text-slate-600 mt-0.5">
-              {role} · Quyền hệ thống: <span className="font-semibold text-slate-900">{profile.systemRole}</span>
+              {role} · Quyền hệ thống:{' '}
+              <span className="font-semibold text-slate-900">
+                {formatSystemRoleLabel(profile.systemRole)}
+              </span>
             </p>
             <p className="text-xs text-slate-500 mt-1">
-              Email tài khoản ({profile.email}) và quyền hệ thống ({profile.systemRole}) được bảo vệ phía máy chủ.
+              Email tài khoản ({profile.email}) và quyền hệ thống (
+              {formatSystemRoleLabel(profile.systemRole)}) được bảo vệ phía máy chủ.
             </p>
           </div>
         </div>

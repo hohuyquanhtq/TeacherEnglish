@@ -1,5 +1,6 @@
 import {
   collection,
+  deleteDoc,
   doc,
   getDoc,
   getDocs,
@@ -12,6 +13,7 @@ import { auth, db } from '@/src/config/firebase';
 
 export const COLLECTIONS = {
   USERS: 'users',
+  ADMIN_AUDIT_LOGS: 'adminAuditLogs',
   SUBJECTS: 'subjects',
   LESSONS: 'lessons',
   CLASSROOM_ENGLISH: 'classroomEnglish',
@@ -144,6 +146,15 @@ export const firestoreService = {
       });
     } catch (error) {
       handleFirestoreError(error, OperationType.UPDATE, path);
+    }
+  },
+
+  async deleteDocument(collectionName: string, docId: string): Promise<void> {
+    const path = `${collectionName}/${docId}`;
+    try {
+      await deleteDoc(doc(db, collectionName, docId));
+    } catch (error) {
+      handleFirestoreError(error, OperationType.DELETE, path);
     }
   },
 };

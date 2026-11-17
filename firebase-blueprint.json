@@ -2,16 +2,22 @@
   "entities": {
     "UserProfile": {
       "title": "UserProfile",
-      "description": "Hồ sơ giáo viên, cấu hình môn học, khối lớp, trình độ tiếng Anh và vai trò phân quyền.",
+      "description": "Hồ sơ giáo viên, thông tin công tác, trạng thái phê duyệt tài khoản, môn học, khối lớp và vai trò phân quyền.",
       "type": "object",
       "properties": {
         "uid": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
         "fullName": { "type": "string", "minLength": 1, "maxLength": 120 },
         "email": { "type": "string", "format": "email", "maxLength": 200 },
-        "role": { "type": "string", "enum": ["Teacher", "Editor", "Admin"] },
+        "role": { "type": "string", "enum": ["teacher", "editor", "admin", "Teacher", "Editor", "Admin"] },
+        "previousRole": { "type": "string", "enum": ["teacher", "editor", "admin", "Teacher", "Editor", "Admin"] },
+        "status": { "type": "string", "enum": ["pending", "approved", "rejected", "suspended"] },
         "teacherPosition": { "type": "string", "maxLength": 80 },
+        "school": { "type": "string", "maxLength": 200 },
         "schoolName": { "type": "string", "maxLength": 200 },
+        "educationLevel": { "type": "string", "enum": ["THCS", "THPT"] },
+        "subject": { "type": "string", "maxLength": 50 },
         "province": { "type": "string", "maxLength": 100 },
+        "phone": { "type": "string", "maxLength": 30 },
         "yearsOfExperience": { "type": "number" },
         "bio": { "type": "string", "maxLength": 1000 },
         "avatarUrl": { "type": "string", "maxLength": 500 },
@@ -23,10 +29,39 @@
         "targetLevel": { "type": "string", "enum": ["A1", "A2", "B1", "B2", "C1", "C2"] },
         "weeklyMinutesTarget": { "type": "number" },
         "onboardingCompleted": { "type": "boolean" },
+        "approvedAt": { "type": "string", "format": "date-time" },
+        "approvedBy": { "type": "string", "maxLength": 128 },
+        "rejectedAt": { "type": "string", "format": "date-time" },
+        "rejectedBy": { "type": "string", "maxLength": 128 },
+        "rejectionReason": { "type": "string", "maxLength": 500 },
+        "suspendedAt": { "type": "string", "format": "date-time" },
+        "suspendedBy": { "type": "string", "maxLength": 128 },
+        "suspendedReason": { "type": "string", "maxLength": 500 },
+        "lastLoginAt": { "type": "string", "format": "date-time" },
         "createdAt": { "type": "string", "format": "date-time" },
         "updatedAt": { "type": "string", "format": "date-time" }
       },
-      "required": ["uid", "fullName", "email", "role", "subjects", "grades", "currentLevel", "targetLevel", "createdAt", "updatedAt"]
+      "required": ["uid", "fullName", "email", "role", "status", "subjects", "grades", "currentLevel", "targetLevel", "createdAt", "updatedAt"]
+    },
+    "AdminAuditLog": {
+      "title": "AdminAuditLog",
+      "description": "Nhật ký bất biến ghi nhận các thao tác phê duyệt, từ chối, khóa/mở khóa và phân quyền của Admin.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "minLength": 1, "maxLength": 128, "pattern": "^[a-zA-Z0-9_\\-]+$" },
+        "actorUid": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "actorEmail": { "type": "string", "maxLength": 200 },
+        "actorRole": { "type": "string", "enum": ["admin"] },
+        "action": { "type": "string", "enum": ["approve_teacher", "reject_teacher", "suspend_user", "unlock_user", "set_role", "bootstrap_admin"] },
+        "targetUid": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "targetEmail": { "type": "string", "maxLength": 200 },
+        "targetName": { "type": "string", "maxLength": 120 },
+        "oldValue": { "type": "object" },
+        "newValue": { "type": "object" },
+        "reason": { "type": "string", "maxLength": 500 },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "actorUid", "actorRole", "action", "targetUid", "oldValue", "newValue", "createdAt"]
     },
     "Subject": {
       "title": "Subject",
@@ -142,7 +177,11 @@
   "firestore": {
     "/users/{uid}": {
       "schema": { "$ref": "#/entities/UserProfile" },
-      "description": "Hồ sơ giáo viên, môn học, khối lớp, trình độ tiếng Anh và vai trò phân quyền."
+      "description": "Hồ sơ giáo viên, trạng thái phê duyệt, môn học, khối lớp, trình độ tiếng Anh và vai trò phân quyền."
+    },
+    "/adminAuditLogs/{logId}": {
+      "schema": { "$ref": "#/entities/AdminAuditLog" },
+      "description": "Nhật ký hành động quản trị (chỉ ghi từ Admin SDK backend, chỉ Admin được đọc)."
     },
     "/subjects/{subjectId}": {
       "schema": { "$ref": "#/entities/Subject" },

@@ -5,13 +5,14 @@ import {
   LogIn,
   LogOut,
   Menu,
+  ShieldCheck,
   SlidersHorizontal,
   UserCog,
-  UserPlus,
 } from 'lucide-react';
 import { AppImage } from '@/src/components/common/AppImage';
 import { ROUTE_TITLES, ROUTES } from '@/src/config/navigation';
 import { useAuth } from '@/src/hooks/authContext';
+import { formatSystemRoleLabel } from '@/src/types';
 import { getStageLabel, getSubjectLabel } from '@/src/utils/formatters';
 
 interface HeaderProps {
@@ -21,11 +22,12 @@ interface HeaderProps {
 export const Header: React.FC<HeaderProps> = ({ onOpenMobileMenu }) => {
   const location = useLocation();
   const navigate = useNavigate();
-  const { session, profile, role, logout } = useAuth();
+  const { session, profile, role, accountStatus, logout } = useAuth();
   const [menuOpen, setMenuOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement | null>(null);
 
   const pageTitle = ROUTE_TITLES[location.pathname] ?? 'Teacher English';
+  const isApproved = accountStatus === 'approved';
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -51,18 +53,20 @@ export const Header: React.FC<HeaderProps> = ({ onOpenMobileMenu }) => {
     <header className="h-16 bg-white border-b border-slate-200 px-4 sm:px-6 flex items-center justify-between gap-4 shrink-0">
       {/* Left: Mobile Trigger & Breadcrumb */}
       <div className="flex items-center gap-3 min-w-0">
-        <button
-          type="button"
-          onClick={onOpenMobileMenu}
-          aria-label="Mở menu điều hướng"
-          className="lg:hidden w-10 h-10 flex items-center justify-center rounded-lg border border-slate-200 text-slate-700 hover:bg-slate-50 shrink-0"
-        >
-          <Menu className="w-5 h-5" />
-        </button>
+        {isApproved ? (
+          <button
+            type="button"
+            onClick={onOpenMobileMenu}
+            aria-label="Mở menu điều hướng"
+            className="lg:hidden w-10 h-10 flex items-center justify-center rounded-lg border border-slate-200 text-slate-700 hover:bg-slate-50 shrink-0"
+          >
+            <Menu className="w-5 h-5" />
+          </button>
+        ) : null}
 
         <div className="flex items-center gap-2 text-sm min-w-0">
           <Link
-            to={ROUTES.DASHBOARD}
+            to={isApproved ? ROUTES.DASHBOARD : ROUTES.PENDING_APPROVAL}
             className="hidden sm:inline text-slate-500 hover:text-slate-800 whitespace-nowrap"
           >
             Teacher English
@@ -76,7 +80,7 @@ export const Header: React.FC<HeaderProps> = ({ onOpenMobileMenu }) => {
 
       {/* Right: Subject preference shortcut + Account Profile Menu */}
       <div className="flex items-center gap-3 shrink-0">
-        {session.isAuthenticated ? (
+        {session.isAuthenticated && isApproved ? (
           <Link
             to={ROUTES.PREFERENCES}
             className="hidden md:inline-flex items-center gap-2 min-h-10 px-3.5 py-2 rounded-lg border border-slate-200 bg-slate-50 hover:bg-slate-100 text-xs font-medium text-slate-700 transition-colors whitespace-nowrap shrink-0"
@@ -139,36 +143,40 @@ export const Header: React.FC<HeaderProps> = ({ onOpenMobileMenu }) => {
               <div className="px-4 py-2.5 border-b border-slate-100">
                 <p className="text-sm font-semibold text-slate-900 truncate">{session.fullName}</p>
                 <p className="text-xs text-slate-500 truncate mt-0.5">
-                  {session.email} · {role}
+                  {session.email} · {formatSystemRoleLabel(role)}
                 </p>
               </div>
 
-              <div className="py-1">
-                <Link
-                  to={ROUTES.PROFILE_SETUP}
-                  role="menuitem"
-                  className="flex items-center gap-2.5 px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50"
-                >
-                  <UserCog className="w-4 h-4 text-slate-500" />
-                  <span>Thiết lập hồ sơ giáo viên</span>
-                </Link>
-                <Link
-                  to={ROUTES.PREFERENCES}
-                  role="menuitem"
-                  className="flex items-center gap-2.5 px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50"
-                >
-                  <SlidersHorizontal className="w-4 h-4 text-slate-500" />
-                  <span>Chọn môn học &amp; trình độ</span>
-                </Link>
-                <Link
-                  to={ROUTES.REGISTER}
-                  role="menuitem"
-                  className="flex items-center gap-2.5 px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50"
-                >
-                  <UserPlus className="w-4 h-4 text-slate-500" />
-                  <span>Tạo tài khoản giáo viên mới</span>
-                </Link>
-              </div>
+              {isApproved ? (
+                <div className="py-1">
+                  <Link
+                    to={ROUTES.PROFILE_SETUP}
+                    role="menuitem"
+                    className="flex items-center gap-2.5 px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50"
+                  >
+                    <UserCog className="w-4 h-4 text-slate-500" />
+                    <span>Thiết lập hồ sơ giáo viên</span>
+                  </Link>
+                  <Link
+                    to={ROUTES.PREFERENCES}
+                    role="menuitem"
+                    className="flex items-center gap-2.5 px-4 py-2.5 text-sm text-slate-700 hover:bg-slate-50"
+                  >
+                    <SlidersHorizontal className="w-4 h-4 text-slate-500" />
+                    <span>Chọn môn học &amp; trình độ</span>
+                  </Link>
+                  {role === 'admin' ? (
+                    <Link
+                      to={ROUTES.ADMIN}
+                      role="menuitem"
+                      className="flex items-center gap-2.5 px-4 py-2.5 text-sm text-blue-800 font-medium hover:bg-blue-50"
+                    >
+                      <ShieldCheck className="w-4 h-4 text-blue-700" />
+                      <span>Quản trị hệ thống</span>
+                    </Link>
+                  ) : null}
+                </div>
+              ) : null}
 
               <div className="pt-1 border-t border-slate-100">
                 <button

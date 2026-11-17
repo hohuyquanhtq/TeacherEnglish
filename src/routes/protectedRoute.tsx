@@ -3,19 +3,21 @@ import { Link, Navigate, Outlet, useLocation } from 'react-router-dom';
 import { ArrowLeft, ShieldAlert } from 'lucide-react';
 import { ROUTES } from '@/src/config/navigation';
 import { useAuth } from '@/src/hooks/authContext';
-import { SystemRole } from '@/src/types';
+import { SystemRole, formatSystemRoleLabel } from '@/src/types';
 
 interface ProtectedRouteProps {
   allowedRoles?: SystemRole[];
+  allowPendingOrBlockedStatus?: boolean;
   children?: React.ReactNode;
 }
 
 export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
   allowedRoles,
+  allowPendingOrBlockedStatus = false,
   children,
 }) => {
   const location = useLocation();
-  const { isAuthReady, isAuthenticated, role } = useAuth();
+  const { isAuthReady, isAuthenticated, role, accountStatus } = useAuth();
 
   if (!isAuthReady) {
     return (
@@ -34,7 +36,20 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
     return <Navigate to={ROUTES.LOGIN} state={{ from: location }} replace />;
   }
 
+  if (!allowPendingOrBlockedStatus) {
+    if (accountStatus === 'pending') {
+      return <Navigate to={ROUTES.PENDING_APPROVAL} replace />;
+    }
+    if (accountStatus === 'rejected') {
+      return <Navigate to={ROUTES.REJECTED} replace />;
+    }
+    if (accountStatus === 'suspended') {
+      return <Navigate to={ROUTES.SUSPENDED} replace />;
+    }
+  }
+
   if (allowedRoles && allowedRoles.length > 0 && !allowedRoles.includes(role)) {
+    const fallbackRoute = role === 'editor' ? ROUTES.EDITOR : ROUTES.DASHBOARD;
     return (
       <div className="bg-white border border-red-200 rounded-xl p-8 max-w-lg mx-auto my-8 text-center space-y-3">
         <div className="w-12 h-12 rounded-xl bg-red-50 text-red-600 flex items-center justify-center mx-auto">
@@ -42,17 +57,21 @@ export const ProtectedRoute: React.FC<ProtectedRouteProps> = ({
         </div>
         <h1 className="text-xl font-bold text-slate-900">Không có quyền truy cập (403)</h1>
         <p className="text-sm text-slate-600 leading-relaxed">
-          Tài khoản của bạn hiện có quyền <span className="font-semibold text-slate-900">{role}</span>.
+          Tài khoản của bạn hiện có quyền{' '}
+          <span className="font-semibold text-slate-900">{formatSystemRoleLabel(role)}</span>.
           Chức năng này chỉ dành cho vai trò:{' '}
-          <span className="font-semibold text-slate-900">{allowedRoles.join(', ')}</span>.
+          <span className="font-semibold text-slate-900">
+            {allowedRoles.map(formatSystemRoleLabel).join(', ')}
+          </span>
+          .
         </p>
         <div className="pt-2">
           <Link
-            to={ROUTES.DASHBOARD}
+            to={fallbackRoute}
             className="inline-flex items-center gap-2 min-h-10 px-4 py-2 text-sm font-semibold text-white bg-blue-700 hover:bg-blue-800 rounded-lg"
           >
             <ArrowLeft className="w-4 h-4" />
-            <span>Quay lại Tổng quan</span>
+            <span>Quay lại trang làm việc</span>
           </Link>
         </div>
       </div>

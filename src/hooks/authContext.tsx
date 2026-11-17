@@ -4,15 +4,18 @@ import { ASSETS } from '@/src/config/curriculum';
 import { auth } from '@/src/config/firebase';
 import { authService } from '@/src/services/authService';
 import {
+  RegisterProfileInput,
   mapFirestoreDocToTeacherProfile,
   userService,
 } from '@/src/services/userService';
 import {
+  AccountStatus,
   AuthSession,
   SystemRole,
   TeacherPreferences,
   TeacherProfile,
-  TeacherRole,
+  normalizeAccountStatus,
+  normalizeSystemRole,
 } from '@/src/types';
 
 const GUEST_PROFILE: TeacherProfile = {
@@ -20,10 +23,15 @@ const GUEST_PROFILE: TeacherProfile = {
   fullName: 'Giáo viên',
   email: '',
   schoolName: '',
+  school: '',
+  educationLevel: 'THPT',
+  subject: 'physics',
+  phone: '',
   province: 'TP. Hồ Chí Minh',
   yearsOfExperience: 0,
   role: 'Giáo viên bộ môn',
-  systemRole: 'Teacher',
+  systemRole: 'teacher',
+  status: 'pending',
   bio: '',
   avatarUrl: ASSETS.TEACHER_AVATAR,
   onboardingCompleted: false,
@@ -44,7 +52,9 @@ const GUEST_SESSION: AuthSession = {
   fullName: 'Khách',
   email: '',
   role: 'Giáo viên bộ môn',
-  systemRole: 'Teacher',
+  systemRole: 'teacher',
+  status: 'pending',
+  claimsApproved: false,
 };
 
 interface AuthContextValue {
@@ -52,21 +62,23 @@ interface AuthContextValue {
   session: AuthSession;
   profile: TeacherProfile;
   role: SystemRole;
+  accountStatus: AccountStatus;
+  claimsApproved: boolean;
   isAuthReady: boolean;
   isAuthenticated: boolean;
-  login: (email: string, password: string) => Promise<void>;
-  loginWithGoogle: () => Promise<void>;
-  register: (payload: {
-    fullName: string;
-    email: string;
-    password: string;
-    role: TeacherRole;
-    schoolName: string;
-  }) => Promise<void>;
+  login: (email: string, password: string) => Promise<AccountStatus>;
+  loginWithGoogle: () => Promise<AccountStatus>;
+  register: (
+    payload: RegisterProfileInput & { email: string; password: string }
+  ) => Promise<void>;
   sendPasswordReset: (email: string) => Promise<void>;
   updateProfile: (partial: Partial<TeacherProfile>) => Promise<void>;
   updatePreferences: (preferences: TeacherPreferences) => Promise<void>;
-  refreshProfile: () => Promise<void>;
+  refreshProfile: (forceTokenRefresh?: boolean) => Promise<{
+    role: SystemRole;
+    status: AccountStatus;
+    claimsApproved: boolean;
+  } | null>;
   logout: () => Promise<void>;
 }
 
@@ -78,21 +90,52 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const [session, setSession] = useState<AuthSession>(GUEST_SESSION);
   const [isAuthReady, setIsAuthReady] = useState<boolean>(false);
 
-  const hydrateUserProfile = useCallback(async (user: User) => {
-    const firestoreDoc = await userService.ensureUserProfile(user);
-    const resolvedRole = await authService.resolveSystemRole(user, firestoreDoc.role);
-    const mappedProfile = mapFirestoreDocToTeacherProfile(firestoreDoc, resolvedRole);
+  const hydrateUserProfile = useCallback(
+    async (
+      user: User,
+      forceTokenRefresh = false
+    ): Promise<{
+      role: SystemRole;
+      status: AccountStatus;
+      claimsApproved: boolean;
+    }> => {
+      const firestoreDoc = await userService.ensureUserProfile(user);
+      const docStatus = normalizeAccountStatus(firestoreDoc.status);
+      let claims = await authService.getVerifiedClaims(user, forceTokenRefresh);
 
-    setProfile(mappedProfile);
-    setSession({
-      isAuthenticated: true,
-      userId: user.uid,
-      fullName: mappedProfile.fullName,
-      email: mappedProfile.email,
-      role: mappedProfile.role,
-      systemRole: resolvedRole,
-    });
-  }, []);
+      // If Firestore shows approved while token claims are still stale, force a token refresh once
+      if (docStatus === 'approved' && !claims.claimApproved && !forceTokenRefresh) {
+        claims = await authService.getVerifiedClaims(user, true);
+      }
+
+      const resolvedRole = claims.claimRole ?? normalizeSystemRole(firestoreDoc.role);
+      const mappedProfile = mapFirestoreDocToTeacherProfile(firestoreDoc, resolvedRole);
+
+      // Keep Firestore status authoritative for UI flow, and require claimsApproved when claims exist
+      const effectiveStatus = mappedProfile.status;
+      const effectiveClaimsApproved =
+        effectiveStatus === 'approved' && claims.claimApproved;
+
+      setProfile(mappedProfile);
+      setSession({
+        isAuthenticated: true,
+        userId: user.uid,
+        fullName: mappedProfile.fullName,
+        email: mappedProfile.email,
+        role: mappedProfile.role,
+        systemRole: resolvedRole,
+        status: effectiveStatus,
+        claimsApproved: effectiveClaimsApproved,
+      });
+
+      return {
+        role: resolvedRole,
+        status: effectiveStatus,
+        claimsApproved: effectiveClaimsApproved,
+      };
+    },
+    []
+  );
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
@@ -114,7 +157,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           fullName: user.displayName || user.email || 'Giáo viên',
           email: user.email || '',
           role: 'Giáo viên bộ môn',
-          systemRole: 'Teacher',
+          systemRole: 'teacher',
+          status: 'pending',
+          claimsApproved: false,
         });
       } finally {
         setIsAuthReady(true);
@@ -125,34 +170,24 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   }, [hydrateUserProfile]);
 
   const login = useCallback(
-    async (email: string, password: string) => {
+    async (email: string, password: string): Promise<AccountStatus> => {
       const user = await authService.loginWithEmail(email, password);
-      await hydrateUserProfile(user);
+      const result = await hydrateUserProfile(user, true);
+      return result.status;
     },
     [hydrateUserProfile]
   );
 
-  const loginWithGoogle = useCallback(async () => {
+  const loginWithGoogle = useCallback(async (): Promise<AccountStatus> => {
     const user = await authService.loginWithGoogle();
-    await hydrateUserProfile(user);
+    const result = await hydrateUserProfile(user, true);
+    return result.status;
   }, [hydrateUserProfile]);
 
   const register = useCallback(
-    async (payload: {
-      fullName: string;
-      email: string;
-      password: string;
-      role: TeacherRole;
-      schoolName: string;
-    }) => {
-      const user = await authService.registerWithEmail({
-        fullName: payload.fullName,
-        email: payload.email,
-        password: payload.password,
-        schoolName: payload.schoolName,
-        teacherPosition: payload.role,
-      });
-      await hydrateUserProfile(user);
+    async (payload: RegisterProfileInput & { email: string; password: string }) => {
+      const user = await authService.registerWithEmail(payload);
+      await hydrateUserProfile(user, false);
     },
     [hydrateUserProfile]
   );
@@ -174,6 +209,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         yearsOfExperience: partial.yearsOfExperience ?? profile.yearsOfExperience,
         role: partial.role ?? profile.role,
         bio: partial.bio ?? profile.bio,
+        phone: partial.phone ?? profile.phone,
       };
 
       await userService.updatePersonalProfile(firebaseUser.uid, nextValues);
@@ -194,10 +230,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     [firebaseUser, hydrateUserProfile]
   );
 
-  const refreshProfile = useCallback(async () => {
-    if (!firebaseUser) return;
-    await hydrateUserProfile(firebaseUser);
-  }, [firebaseUser, hydrateUserProfile]);
+  const refreshProfile = useCallback(
+    async (forceTokenRefresh = false) => {
+      if (!firebaseUser) return null;
+      return hydrateUserProfile(firebaseUser, forceTokenRefresh);
+    },
+    [firebaseUser, hydrateUserProfile]
+  );
 
   const logout = useCallback(async () => {
     await authService.logout();
@@ -213,6 +252,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         session,
         profile,
         role: session.systemRole,
+        accountStatus: session.status,
+        claimsApproved: session.claimsApproved,
         isAuthReady,
         isAuthenticated: session.isAuthenticated,
         login,

@@ -13,7 +13,7 @@ import { ROUTES } from '@/src/config/navigation';
 import { useAsyncData } from '@/src/hooks/useAsyncData';
 import { useAuth } from '@/src/hooks/useAuth';
 import { teacherService } from '@/src/services/teacherService';
-import { LearningGoal } from '@/src/types';
+import { LearningGoal, formatSystemRoleLabel } from '@/src/types';
 import { formatGradesLabel, getStageLabel, getSubjectLabel } from '@/src/utils/formatters';
 
 export const DashboardPage: React.FC = () => {
@@ -79,7 +79,7 @@ export const DashboardPage: React.FC = () => {
           profile.preferences.grades
         )}) · Lộ trình ${profile.preferences.currentLevel} → ${
           profile.preferences.targetLevel
-        } · Quyền: ${profile.systemRole}`}
+        } · Quyền: ${formatSystemRoleLabel(profile.systemRole)}`}
         actions={
           <>
             <Link

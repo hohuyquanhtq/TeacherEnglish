@@ -9,7 +9,7 @@ service cloud.firestore {
     }
 
     // -------------------------------------------------------------------------
-    // Global Hardened Primitives
+    // Global Hardened Primitives (Custom Claims First)
     // -------------------------------------------------------------------------
     function isSignedIn() {
       return request.auth != null;
@@ -31,42 +31,28 @@ service cloud.firestore {
       return isSignedIn() && request.auth.uid == uid;
     }
 
-    function isBootstrappedAdmin() {
+    function isApprovedClaim() {
       return isSignedIn()
-        && request.auth.token.email == 'hohuyquanhtq@gmail.com'
-        && request.auth.token.email_verified == true;
+        && ('approved' in request.auth.token)
+        && request.auth.token.approved == true;
     }
 
-    function userDocExists() {
-      return exists(/databases/$(database)/documents/users/$(request.auth.uid));
-    }
-
-    function getUserRole() {
-      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role;
-    }
-
-    function hasAdminClaim() {
-      return isSignedIn() && ('role' in request.auth.token) && request.auth.token.role == 'Admin';
-    }
-
-    function hasEditorClaim() {
-      return isSignedIn() && ('role' in request.auth.token) && request.auth.token.role in ['Editor', 'Admin'];
+    function hasRoleClaim(roles) {
+      return isSignedIn()
+        && ('role' in request.auth.token)
+        && request.auth.token.role in roles;
     }
 
     function isAdmin() {
-      return isSignedIn() && (
-        isBootstrappedAdmin()
-        || hasAdminClaim()
-        || (userDocExists() && getUserRole() == 'Admin')
-      );
+      return isApprovedClaim() && hasRoleClaim(['admin', 'Admin']);
     }
 
     function isEditorOrAdmin() {
-      return isSignedIn() && (
-        isBootstrappedAdmin()
-        || hasEditorClaim()
-        || (userDocExists() && getUserRole() in ['Editor', 'Admin'])
-      );
+      return isApprovedClaim() && hasRoleClaim(['editor', 'admin', 'Editor', 'Admin']);
+    }
+
+    function isApprovedUser() {
+      return isApprovedClaim() && hasRoleClaim(['teacher', 'editor', 'admin', 'Teacher', 'Editor', 'Admin']);
     }
 
     // -------------------------------------------------------------------------
@@ -74,23 +60,33 @@ service cloud.firestore {
     // -------------------------------------------------------------------------
     function isValidUserProfile(data, uid) {
       return data.keys().hasAll([
-          'uid', 'fullName', 'email', 'role', 'subjects', 'grades',
+          'uid', 'fullName', 'email', 'role', 'status', 'subjects', 'grades',
           'currentLevel', 'targetLevel', 'createdAt', 'updatedAt'
         ])
         && data.keys().hasOnly([
-          'uid', 'fullName', 'email', 'role', 'teacherPosition', 'schoolName',
-          'province', 'yearsOfExperience', 'bio', 'avatarUrl', 'primarySubject',
-          'subjects', 'schoolStage', 'grades', 'currentLevel', 'targetLevel',
-          'weeklyMinutesTarget', 'onboardingCompleted', 'createdAt', 'updatedAt'
+          'uid', 'fullName', 'email', 'role', 'previousRole', 'status',
+          'teacherPosition', 'school', 'schoolName', 'educationLevel', 'subject',
+          'province', 'phone', 'yearsOfExperience', 'bio', 'avatarUrl',
+          'primarySubject', 'subjects', 'schoolStage', 'grades', 'currentLevel',
+          'targetLevel', 'weeklyMinutesTarget', 'onboardingCompleted',
+          'approvedAt', 'approvedBy', 'rejectedAt', 'rejectedBy', 'rejectionReason',
+          'suspendedAt', 'suspendedBy', 'suspendedReason', 'lastLoginAt',
+          'createdAt', 'updatedAt'
         ])
         && data.uid == uid
         && data.uid is string && data.uid.size() > 0 && data.uid.size() <= 128
         && data.fullName is string && data.fullName.size() >= 1 && data.fullName.size() <= 120
         && data.email is string && data.email.size() >= 3 && data.email.size() <= 200
-        && data.role in ['Teacher', 'Editor', 'Admin']
+        && data.role in ['teacher', 'editor', 'admin', 'Teacher', 'Editor', 'Admin']
+        && (!('previousRole' in data) || data.previousRole == null || data.previousRole in ['teacher', 'editor', 'admin', 'Teacher', 'Editor', 'Admin'])
+        && data.status in ['pending', 'approved', 'rejected', 'suspended']
         && (!('teacherPosition' in data) || (data.teacherPosition is string && data.teacherPosition.size() <= 80))
+        && (!('school' in data) || (data.school is string && data.school.size() <= 200))
         && (!('schoolName' in data) || (data.schoolName is string && data.schoolName.size() <= 200))
+        && (!('educationLevel' in data) || data.educationLevel in ['THCS', 'THPT'])
+        && (!('subject' in data) || (data.subject is string && data.subject.size() <= 50))
         && (!('province' in data) || (data.province is string && data.province.size() <= 100))
+        && (!('phone' in data) || (data.phone is string && data.phone.size() <= 30))
         && (!('yearsOfExperience' in data) || (data.yearsOfExperience is number && data.yearsOfExperience >= 0 && data.yearsOfExperience <= 60))
         && (!('bio' in data) || (data.bio is string && data.bio.size() <= 1000))
         && (!('avatarUrl' in data) || (data.avatarUrl is string && data.avatarUrl.size() <= 500))
@@ -104,6 +100,15 @@ service cloud.firestore {
         && data.targetLevel in ['A1', 'A2', 'B1', 'B2', 'C1', 'C2']
         && (!('weeklyMinutesTarget' in data) || (data.weeklyMinutesTarget is number && data.weeklyMinutesTarget >= 30 && data.weeklyMinutesTarget <= 2000))
         && (!('onboardingCompleted' in data) || data.onboardingCompleted is bool)
+        && (!('approvedAt' in data) || data.approvedAt == null || data.approvedAt is timestamp)
+        && (!('approvedBy' in data) || data.approvedBy == null || (data.approvedBy is string && data.approvedBy.size() <= 128))
+        && (!('rejectedAt' in data) || data.rejectedAt == null || data.rejectedAt is timestamp)
+        && (!('rejectedBy' in data) || data.rejectedBy == null || (data.rejectedBy is string && data.rejectedBy.size() <= 128))
+        && (!('rejectionReason' in data) || data.rejectionReason == null || (data.rejectionReason is string && data.rejectionReason.size() <= 500))
+        && (!('suspendedAt' in data) || data.suspendedAt == null || data.suspendedAt is timestamp)
+        && (!('suspendedBy' in data) || data.suspendedBy == null || (data.suspendedBy is string && data.suspendedBy.size() <= 128))
+        && (!('suspendedReason' in data) || data.suspendedReason == null || (data.suspendedReason is string && data.suspendedReason.size() <= 500))
+        && (!('lastLoginAt' in data) || data.lastLoginAt == null || data.lastLoginAt is timestamp)
         && data.createdAt is timestamp
         && data.updatedAt is timestamp;
     }
@@ -222,20 +227,31 @@ service cloud.firestore {
     // Collection Rules
     // -------------------------------------------------------------------------
     match /users/{uid} {
+      // Owners (even pending/rejected/suspended) can read ONLY their own status doc; Admin can read/list all
       allow get: if isValidId(uid) && (isOwner(uid) || isAdmin());
       allow list: if isAdmin();
 
-      // Users can create ONLY their own profile with default role = 'Teacher' (unless Admin)
+      // Self-registration strictly locked to role='teacher' and status='pending' without approval metadata
       allow create: if isValidId(uid)
         && isValidUserProfile(incoming(), uid)
         && incoming().createdAt == request.time
         && incoming().updatedAt == request.time
         && (
-          (isOwner(uid) && incoming().role == 'Teacher')
+          (
+            isOwner(uid)
+            && incoming().role == 'teacher'
+            && incoming().status == 'pending'
+            && !('approvedAt' in incoming())
+            && !('approvedBy' in incoming())
+            && !('rejectedAt' in incoming())
+            && !('rejectedBy' in incoming())
+            && !('suspendedAt' in incoming())
+            && !('suspendedBy' in incoming())
+          )
           || isAdmin()
         );
 
-      // Users can update ONLY their own profile/preferences, NEVER role/uid/createdAt/email
+      // Only approved owners can update personal profile fields; NEVER role, status, email, or audit fields
       allow update: if isValidId(uid)
         && isValidUserProfile(incoming(), uid)
         && incoming().uid == existing().uid
@@ -244,12 +260,14 @@ service cloud.firestore {
         && (
           (
             isOwner(uid)
+            && isApprovedUser()
             && incoming().role == existing().role
+            && incoming().status == existing().status
             && incoming().email == existing().email
             && incoming().diff(existing()).affectedKeys().hasOnly([
-              'fullName', 'teacherPosition', 'schoolName', 'province',
-              'yearsOfExperience', 'bio', 'avatarUrl', 'primarySubject',
-              'subjects', 'schoolStage', 'grades', 'currentLevel',
+              'fullName', 'teacherPosition', 'school', 'schoolName', 'educationLevel',
+              'subject', 'province', 'phone', 'yearsOfExperience', 'bio', 'avatarUrl',
+              'primarySubject', 'subjects', 'schoolStage', 'grades', 'currentLevel',
               'targetLevel', 'weeklyMinutesTarget', 'onboardingCompleted', 'updatedAt'
             ])
           )
@@ -259,9 +277,16 @@ service cloud.firestore {
       allow delete: if isValidId(uid) && isAdmin();
     }
 
+    match /adminAuditLogs/{logId} {
+      allow get: if isValidId(logId) && isAdmin();
+      allow list: if isAdmin();
+      // Written exclusively by trusted backend Admin SDK
+      allow create, update, delete: if false;
+    }
+
     match /subjects/{subjectId} {
-      allow get: if isValidId(subjectId) && isSignedIn();
-      allow list: if isSignedIn();
+      allow get: if isValidId(subjectId) && isApprovedUser();
+      allow list: if isApprovedUser();
       allow create, update: if isValidId(subjectId)
         && isValidSubject(incoming(), subjectId)
         && incoming().updatedAt == request.time
@@ -270,8 +295,8 @@ service cloud.firestore {
     }
 
     match /lessons/{lessonId} {
-      allow get: if isValidId(lessonId) && isSignedIn();
-      allow list: if isSignedIn();
+      allow get: if isValidId(lessonId) && isApprovedUser();
+      allow list: if isApprovedUser();
       allow create, update: if isValidId(lessonId)
         && isValidLesson(incoming(), lessonId)
         && incoming().updatedAt == request.time
@@ -280,8 +305,8 @@ service cloud.firestore {
     }
 
     match /classroomEnglish/{categoryId} {
-      allow get: if isValidId(categoryId) && isSignedIn();
-      allow list: if isSignedIn();
+      allow get: if isValidId(categoryId) && isApprovedUser();
+      allow list: if isApprovedUser();
       allow create, update: if isValidId(categoryId)
         && isValidClassroomEnglish(incoming(), categoryId)
         && incoming().updatedAt == request.time
@@ -290,8 +315,8 @@ service cloud.firestore {
     }
 
     match /quizzes/{quizId} {
-      allow get: if isValidId(quizId) && isSignedIn();
-      allow list: if isSignedIn();
+      allow get: if isValidId(quizId) && isApprovedUser();
+      allow list: if isApprovedUser();
       allow create, update: if isValidId(quizId)
         && isValidQuiz(incoming(), quizId)
         && incoming().updatedAt == request.time
@@ -300,38 +325,38 @@ service cloud.firestore {
     }
 
     match /userLibrary/{uid} {
-      allow get: if isValidId(uid) && (isOwner(uid) || isAdmin());
+      allow get: if isValidId(uid) && ((isOwner(uid) && isApprovedUser()) || isAdmin());
       allow list: if isAdmin();
       allow create, update: if isValidId(uid)
         && isValidUserLibrary(incoming(), uid)
         && incoming().updatedAt == request.time
-        && (isOwner(uid) || isAdmin());
-      allow delete: if isValidId(uid) && (isOwner(uid) || isAdmin());
+        && ((isOwner(uid) && isApprovedUser()) || isAdmin());
+      allow delete: if isValidId(uid) && ((isOwner(uid) && isApprovedUser()) || isAdmin());
     }
 
     match /aiSessions/{uid} {
-      allow get: if isValidId(uid) && (isOwner(uid) || isAdmin());
+      allow get: if isValidId(uid) && ((isOwner(uid) && isApprovedUser()) || isAdmin());
       allow list: if isAdmin();
       allow create, update: if isValidId(uid)
         && isValidAiSession(incoming(), uid)
         && incoming().updatedAt == request.time
-        && (isOwner(uid) || isAdmin());
-      allow delete: if isValidId(uid) && (isOwner(uid) || isAdmin());
+        && ((isOwner(uid) && isApprovedUser()) || isAdmin());
+      allow delete: if isValidId(uid) && ((isOwner(uid) && isApprovedUser()) || isAdmin());
     }
 
     match /learningRecords/{uid} {
-      allow get: if isValidId(uid) && (isOwner(uid) || isAdmin());
+      allow get: if isValidId(uid) && ((isOwner(uid) && isApprovedUser()) || isAdmin());
       allow list: if isAdmin();
       allow create, update: if isValidId(uid)
         && isValidLearningRecord(incoming(), uid)
         && incoming().updatedAt == request.time
-        && (isOwner(uid) || isAdmin());
-      allow delete: if isValidId(uid) && (isOwner(uid) || isAdmin());
+        && ((isOwner(uid) && isApprovedUser()) || isAdmin());
+      allow delete: if isValidId(uid) && ((isOwner(uid) && isApprovedUser()) || isAdmin());
     }
 
     match /systemSettings/{settingId} {
-      allow get: if isValidId(settingId) && isSignedIn();
-      allow list: if isSignedIn();
+      allow get: if isValidId(settingId) && isApprovedUser();
+      allow list: if isApprovedUser();
       allow create, update: if isValidId(settingId)
         && isValidSystemSetting(incoming(), settingId)
         && incoming().updatedAt == request.time

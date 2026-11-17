@@ -12,9 +12,13 @@ export const ROUTES = {
   ASSESSMENTS: '/assessments',
   LIBRARY: '/library',
   REPORTS: '/reports',
+  EDITOR: '/editor',
   ADMIN: '/admin',
   LOGIN: '/login',
   REGISTER: '/register',
+  PENDING_APPROVAL: '/pending-approval',
+  REJECTED: '/rejected',
+  SUSPENDED: '/suspended',
   PROFILE_SETUP: '/profile-setup',
   PREFERENCES: '/preferences',
 } as const;
@@ -26,6 +30,7 @@ export const SIDEBAR_NAV_ITEMS: NavItem[] = [
     path: ROUTES.DASHBOARD,
     icon: 'dashboard',
     description: 'Tiến độ học tập, bài học gần đây và mục tiêu cá nhân',
+    section: 'learning',
   },
   {
     id: 'roadmap',
@@ -33,6 +38,7 @@ export const SIDEBAR_NAV_ITEMS: NavItem[] = [
     path: ROUTES.ROADMAP,
     icon: 'roadmap',
     description: 'Lộ trình bồi dưỡng theo môn học và trình độ CEFR',
+    section: 'learning',
   },
   {
     id: 'english-classroom',
@@ -40,6 +46,7 @@ export const SIDEBAR_NAV_ITEMS: NavItem[] = [
     path: ROUTES.ENGLISH_CLASSROOM,
     icon: 'classroom',
     description: 'Mẫu câu điều hành lớp học bằng tiếng Anh thực tế',
+    section: 'learning',
   },
   {
     id: 'subject-english',
@@ -47,6 +54,7 @@ export const SIDEBAR_NAV_ITEMS: NavItem[] = [
     path: ROUTES.SUBJECT_ENGLISH,
     icon: 'subject',
     description: 'Thuật ngữ và cấu trúc giảng dạy chuyên ngành',
+    section: 'learning',
   },
   {
     id: 'bilingual-lessons',
@@ -54,6 +62,7 @@ export const SIDEBAR_NAV_ITEMS: NavItem[] = [
     path: ROUTES.BILINGUAL_LESSONS,
     icon: 'bilingual',
     description: 'Kịch bản bài giảng song ngữ Anh - Việt theo khối lớp',
+    section: 'learning',
   },
   {
     id: 'ai-coach',
@@ -61,6 +70,7 @@ export const SIDEBAR_NAV_ITEMS: NavItem[] = [
     path: ROUTES.AI_COACH,
     icon: 'coach',
     description: 'Trợ lý cố vấn phương pháp và ngôn ngữ giảng dạy',
+    section: 'learning',
   },
   {
     id: 'speaking',
@@ -68,6 +78,7 @@ export const SIDEBAR_NAV_ITEMS: NavItem[] = [
     path: ROUTES.SPEAKING,
     icon: 'speaking',
     description: 'Luyện phát âm, ngữ điệu và phản xạ trên lớp',
+    section: 'learning',
   },
   {
     id: 'teaching-practice',
@@ -75,6 +86,7 @@ export const SIDEBAR_NAV_ITEMS: NavItem[] = [
     path: ROUTES.TEACHING_PRACTICE,
     icon: 'practice',
     description: 'Mô phỏng tình huống đứng lớp và giảng thử',
+    section: 'learning',
   },
   {
     id: 'assessments',
@@ -82,6 +94,7 @@ export const SIDEBAR_NAV_ITEMS: NavItem[] = [
     path: ROUTES.ASSESSMENTS,
     icon: 'assessments',
     description: 'Bài đánh giá năng lực và kiểm tra kiến thức định kỳ',
+    section: 'learning',
   },
   {
     id: 'library',
@@ -89,6 +102,7 @@ export const SIDEBAR_NAV_ITEMS: NavItem[] = [
     path: ROUTES.LIBRARY,
     icon: 'library',
     description: 'Tài liệu, mẫu câu và giáo án đã lưu',
+    section: 'learning',
   },
   {
     id: 'reports',
@@ -96,13 +110,25 @@ export const SIDEBAR_NAV_ITEMS: NavItem[] = [
     path: ROUTES.REPORTS,
     icon: 'reports',
     description: 'Thống kê thời lượng học và mức độ hoàn thành',
+    section: 'learning',
+  },
+  {
+    id: 'editor',
+    label: 'Biên tập học liệu',
+    path: ROUTES.EDITOR,
+    icon: 'editor',
+    description: 'Quản lý và cập nhật học liệu chuẩn theo môn học',
+    roles: ['editor', 'admin'],
+    section: 'management',
   },
   {
     id: 'admin',
-    label: 'Quản trị',
+    label: 'Quản trị hệ thống',
     path: ROUTES.ADMIN,
     icon: 'admin',
-    description: 'Quản lý danh sách giáo viên, tổ chuyên môn và học liệu',
+    description: 'Phê duyệt giáo viên, quản lý người dùng, phân quyền và nhật ký quản trị',
+    roles: ['admin'],
+    section: 'management',
   },
 ];
 
@@ -118,7 +144,11 @@ export const ROUTE_TITLES: Record<string, string> = {
   [ROUTES.ASSESSMENTS]: 'Kiểm tra',
   [ROUTES.LIBRARY]: 'Thư viện của tôi',
   [ROUTES.REPORTS]: 'Báo cáo tiến độ',
-  [ROUTES.ADMIN]: 'Quản trị',
+  [ROUTES.EDITOR]: 'Biên tập học liệu',
+  [ROUTES.ADMIN]: 'Quản trị hệ thống',
   [ROUTES.PROFILE_SETUP]: 'Thiết lập hồ sơ giáo viên',
   [ROUTES.PREFERENCES]: 'Môn học, khối lớp & trình độ',
+  [ROUTES.PENDING_APPROVAL]: 'Chờ phê duyệt tài khoản',
+  [ROUTES.REJECTED]: 'Tài khoản bị từ chối',
+  [ROUTES.SUSPENDED]: 'Tài khoản đang tạm khóa',
 };

@@ -4,6 +4,7 @@ import { Eye, EyeOff, KeyRound, LogIn, MailCheck } from 'lucide-react';
 import { ROUTES } from '@/src/config/navigation';
 import { useAuth } from '@/src/hooks/authContext';
 import { mapFirebaseAuthError } from '@/src/services/authService';
+import { AccountStatus } from '@/src/types';
 
 export const LoginPage: React.FC = () => {
   const navigate = useNavigate();
@@ -25,6 +26,22 @@ export const LoginPage: React.FC = () => {
   const [resetEmail, setResetEmail] = useState('');
   const [resetSuccess, setResetSuccess] = useState('');
 
+  const navigateByStatus = (status: AccountStatus) => {
+    if (status === 'pending') {
+      navigate(ROUTES.PENDING_APPROVAL, { replace: true });
+      return;
+    }
+    if (status === 'rejected') {
+      navigate(ROUTES.REJECTED, { replace: true });
+      return;
+    }
+    if (status === 'suspended') {
+      navigate(ROUTES.SUSPENDED, { replace: true });
+      return;
+    }
+    navigate(fromPath, { replace: true });
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!email.trim() || !password) {
@@ -35,8 +52,8 @@ export const LoginPage: React.FC = () => {
     setErrorMessage('');
     setIsSubmitting(true);
     try {
-      await login(email, password);
-      navigate(fromPath, { replace: true });
+      const status = await login(email, password);
+      navigateByStatus(status);
     } catch (error) {
       setErrorMessage(mapFirebaseAuthError(error));
     } finally {
@@ -48,8 +65,8 @@ export const LoginPage: React.FC = () => {
     setErrorMessage('');
     setIsSubmitting(true);
     try {
-      await loginWithGoogle();
-      navigate(fromPath, { replace: true });
+      const status = await loginWithGoogle();
+      navigateByStatus(status);
     } catch (error) {
       setErrorMessage(mapFirebaseAuthError(error));
     } finally {

@@ -1,4 +1,43 @@
-export type SystemRole = 'Teacher' | 'Editor' | 'Admin';
+export type SystemRole = 'teacher' | 'editor' | 'admin';
+
+export type LegacyOrCanonicalRole = SystemRole | 'Teacher' | 'Editor' | 'Admin';
+
+export type AccountStatus = 'pending' | 'approved' | 'rejected' | 'suspended';
+
+export type EducationLevel = 'THCS' | 'THPT';
+
+export function normalizeSystemRole(role?: unknown): SystemRole {
+  if (typeof role !== 'string') return 'teacher';
+  const normalized = role.trim().toLowerCase();
+  if (normalized === 'admin') return 'admin';
+  if (normalized === 'editor') return 'editor';
+  return 'teacher';
+}
+
+export function formatSystemRoleLabel(role: SystemRole): string {
+  switch (role) {
+    case 'admin':
+      return 'Admin';
+    case 'editor':
+      return 'Editor';
+    default:
+      return 'Teacher';
+  }
+}
+
+export function normalizeAccountStatus(status?: unknown): AccountStatus {
+  if (typeof status !== 'string') return 'pending';
+  const normalized = status.trim().toLowerCase();
+  if (
+    normalized === 'approved' ||
+    normalized === 'rejected' ||
+    normalized === 'suspended' ||
+    normalized === 'pending'
+  ) {
+    return normalized;
+  }
+  return 'pending';
+}
 
 export type EnglishLevel = 'A1' | 'A2' | 'B1' | 'B2' | 'C1' | 'C2';
 
@@ -37,10 +76,24 @@ export interface TeacherProfile {
   fullName: string;
   email: string;
   schoolName: string;
+  school?: string;
+  educationLevel?: EducationLevel;
+  subject?: SubjectId;
+  phone?: string;
   province: string;
   yearsOfExperience: number;
   role: TeacherRole;
   systemRole: SystemRole;
+  status: AccountStatus;
+  approvedAt?: string | null;
+  approvedBy?: string | null;
+  rejectedAt?: string | null;
+  rejectedBy?: string | null;
+  rejectionReason?: string | null;
+  suspendedAt?: string | null;
+  suspendedBy?: string | null;
+  suspendedReason?: string | null;
+  lastLoginAt?: string | null;
   bio: string;
   avatarUrl: string;
   preferences: TeacherPreferences;
@@ -51,10 +104,16 @@ export interface FirestoreUserProfile {
   uid: string;
   fullName: string;
   email: string;
-  role: SystemRole;
+  role: LegacyOrCanonicalRole;
+  previousRole?: LegacyOrCanonicalRole;
+  status?: AccountStatus;
   teacherPosition?: TeacherRole;
   schoolName?: string;
+  school?: string;
+  educationLevel?: EducationLevel;
+  subject?: SubjectId;
   province?: string;
+  phone?: string;
   yearsOfExperience?: number;
   bio?: string;
   avatarUrl?: string;
@@ -66,6 +125,15 @@ export interface FirestoreUserProfile {
   targetLevel: EnglishLevel;
   weeklyMinutesTarget?: number;
   onboardingCompleted?: boolean;
+  approvedAt?: unknown;
+  approvedBy?: string | null;
+  rejectedAt?: unknown;
+  rejectedBy?: string | null;
+  rejectionReason?: string | null;
+  suspendedAt?: unknown;
+  suspendedBy?: string | null;
+  suspendedReason?: string | null;
+  lastLoginAt?: unknown;
   createdAt?: unknown;
   updatedAt?: unknown;
 }
@@ -77,6 +145,70 @@ export interface AuthSession {
   email: string;
   role: TeacherRole;
   systemRole: SystemRole;
+  status: AccountStatus;
+  claimsApproved: boolean;
+}
+
+export interface AdminUserListItem {
+  uid: string;
+  fullName: string;
+  email: string;
+  school: string;
+  educationLevel: EducationLevel;
+  subject: SubjectId;
+  province: string;
+  phone: string;
+  role: SystemRole;
+  previousRole?: SystemRole;
+  status: AccountStatus;
+  currentLevel: EnglishLevel;
+  targetLevel: EnglishLevel;
+  createdAt: string | null;
+  updatedAt: string | null;
+  approvedAt: string | null;
+  approvedBy: string | null;
+  rejectedAt: string | null;
+  rejectedBy: string | null;
+  rejectionReason: string | null;
+  suspendedAt: string | null;
+  suspendedBy: string | null;
+  suspendedReason: string | null;
+  lastLoginAt: string | null;
+  disabled?: boolean;
+  emailVerified?: boolean;
+}
+
+export interface AdminDashboardStats {
+  totalAccounts: number;
+  approvedTeachers: number;
+  pendingTeachers: number;
+  rejectedAccounts: number;
+  suspendedAccounts: number;
+  editorsCount: number;
+  adminsCount: number;
+}
+
+export type AuditActionType =
+  | 'approve_teacher'
+  | 'reject_teacher'
+  | 'suspend_user'
+  | 'unlock_user'
+  | 'set_role'
+  | 'bootstrap_admin';
+
+export interface AdminAuditLog {
+  id: string;
+  actorUid: string;
+  actorEmail?: string;
+  actorRole: SystemRole;
+  action: AuditActionType;
+  targetUid: string;
+  targetEmail?: string;
+  targetName?: string;
+  oldValue: Record<string, unknown>;
+  newValue: Record<string, unknown>;
+  reason?: string;
+  createdAt: string;
 }
 
 export type NavIconKey =
@@ -91,6 +223,7 @@ export type NavIconKey =
   | 'assessments'
   | 'library'
   | 'reports'
+  | 'editor'
   | 'admin';
 
 export interface NavItem {
@@ -99,6 +232,8 @@ export interface NavItem {
   path: string;
   icon: NavIconKey;
   description: string;
+  roles?: SystemRole[];
+  section?: 'learning' | 'management';
 }
 
 export type LessonStatus = 'completed' | 'in_progress' | 'not_started';
