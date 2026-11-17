@@ -1,0 +1,8 @@
+{
+  "name": "Teacher English",
+  "description": "Nền tảng phát triển năng lực tiếng Anh và giảng dạy song ngữ dành cho giáo viên Việt Nam.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
