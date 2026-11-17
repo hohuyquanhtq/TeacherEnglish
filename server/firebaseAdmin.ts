@@ -27,7 +27,7 @@ function loadAppletConfig(): FirebaseAppletConfig {
   }
 
   return {
-    projectId: process.env.VITE_FIREBASE_PROJECT_ID || 'agile-booster-w8p5g',
+    projectId: process.env.FIREBASE_PROJECT_ID || 'agile-booster-w8p5g',
     firestoreDatabaseId: process.env.VITE_FIREBASE_FIRESTORE_DATABASE_ID,
   };
 }
